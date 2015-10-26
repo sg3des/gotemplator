@@ -1,3 +1,6 @@
+//Templator is  alternative view on html templates for go!
+//is the generator go code returned html
+
 //go:install
 package main
 

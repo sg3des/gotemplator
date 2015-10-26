@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE ftopkudoctype>
+<plist version="1.0">
+<dict>
+	<key>fileTypes</key>
+	<array>
+		<string>gtm</string>
+	</array>
+	<key>name</key>
+	<string>Templator</string>
+	<key>patterns</key>
+	<array>
+
+		<dict>
+			<key>include</key>
+			<string>text.html.basic</string>
+		</dict>
+
+		<dict>
+			<key>begin</key>
+			<string>||</string>
+			<key>end</key>
+			<string>$</string>
+			<key>include</key>
+			<string>source.go</string>
+		</dict>
+
+		<dict>
+			<key>begin</key>
+			<string>{</string>
+			<key>end</key>
+			<string>}</string>
+			<key>include</key>
+			<string>source.go</string>
+		</dict>
+
+	</array>
+	<key>scopeName</key>
+	<string>templator.gtm</string>
+	<key>uuid</key>
+	<string>78c486ec-0101-11e2-a85a-00262d996a67</string>
+</dict>
+</plist>

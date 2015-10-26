@@ -1,4 +1,5 @@
-package templator
+//go:install
+package main
 
 import (
 	"bufio"
@@ -11,6 +12,15 @@ import (
 	"regexp"
 	"strings"
 )
+
+func main() {
+	var globpath = ""
+	if len(os.Args) >= 2 && len(os.Args[1]) > 0 {
+		globpath = os.Args[1]
+	}
+
+	Generate(globpath, true)
+}
 
 //Generate find all gtm templates in directory, generate go code and save it
 func Generate(dir string, verbose ...bool) {

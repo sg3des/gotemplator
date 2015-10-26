@@ -1,9 +1,9 @@
 # TEMPLATOR
 
-Templator is alternative view on html templates for go - on my opinion, standard package "text/templates" offer uggly syntax! 
+Templator is alternative view on html templates for go - on my opinion, standard package "text/templates" offer awful syntax! 
 
 Why syntax in the templates must be different from the GO syntax?
-Complex html templates it becomes very hard to understand!
+Coplex html templates become pretty hard to understand.
 Functions\pipeline calls are also very poor, we have to write functions such as eq, more, less, et.c.
 
 ## USAGE

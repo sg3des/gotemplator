@@ -1,16 +1,15 @@
-|| import ("os")
-|| func Index(name string, data map[int]string){ 
-<!DOCTYPE html>
-<html>
-	<head>
-		<title></title>
-	</head>
-	<body>
-		<h1>Hello, {{=name}}</h1>
-		|| for key,val := range data { 
-			<div><b>{{=key}}</b>:<i>{{=val}}</i></div>
-			// {{=key}} - this is comment and will not be in the .go file
-		|| } 
-	</body>
-</html>
+|| template Index(name string, data map[int]string){ 
+	<!DOCTYPE html>
+	<html>
+		<head>
+			<title></title>
+		</head>
+		<body>
+			<h1>Hello, {{=name}}</h1>
+			|| for key,val := range data { 
+				<div><b>{{=key}}</b>:<i>{{=val}}</i></div>
+				// {{=key}} - this is comment and will not be in the .go file
+			|| } 
+		</body>
+	</html>
 ||}

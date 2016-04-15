@@ -3,16 +3,22 @@
 Templator is alternative view on html templates for go - on my opinion, standard package "text/templates" offer awful syntax! 
 
 Why syntax in the templates must be different from the GO syntax?
-Coplex html templates become pretty hard to understand.
-Functions\pipeline calls are also very poor, we have to write functions such as eq, more, less, et.c.
+
+	1. Coplex html templates become pretty hard to understand.
+	2. Functions\pipeline calls are also very poor, we have to write functions such as eq, more, less, et.c.
+
+Templator generate **go** code from simply templates(*.gtm).
+
+HTML template - it function, with full syntax GO. Template functions returned []byte HTML code.
+
 
 ## USAGE
 
-Templator generate go code from gtm templates:
-
 - manually execute `gotemplator /path/to/dir`
 
-- use go generate - add to your project:	`//go:generate gotemplator /path/to/dir/` and execute `go generate`
+OR use go generate:
+
+- add to your project:	`//go:generate gotemplator /path/to/dir/` and execute `go generate`
 
 ## SYNTAX
 
@@ -24,13 +30,11 @@ Template syntax is hybrid of html and go, have only 3 rules:
 
 3) code in `{{=var}}` - is short print variable
 
-everything else is html - which moved to go file how `w.Write([]byte(string))`
+everything else is html - which moved to go file how `_W.WriteString(string)`
 
 example:
 	
-	|| package main
-	|| import ("fmt";"io")
-	|| func Index(w io.Writer, name string, data map[string]string) {
+	|| template Index(name string, data map[string]string) {
 	<!DOCTYPE html>
 	<html>
 	    <head>
@@ -47,34 +51,34 @@ example:
 
 this is transform to:
 
-	package main
+	package templates
 
 	import (
+		"bytes"
 		"fmt"
-		"io"
 	)
 
-	func Index(w io.Writer, name []byte, data map[string]string) {
-		w.Write([]byte("<!DOCTYPE html>"))
-		w.Write([]byte("<html>"))
-		w.Write([]byte("    <head>"))
-		w.Write([]byte("        <title></title>"))
-		w.Write([]byte("    </head>"))
-		w.Write([]byte("    <body>"))
-		w.Write([]byte("        <h1>Hello, "))
-		fmt.Fprintf(w, "%s", name)
-		w.Write([]byte("</h1>"))
-		w.Write([]byte("        "))
+	func Index(name string, data map[int]string) []byte {
+		_W := bytes.NewBuffer([]byte{})
+
+		_W.WriteString("\t<!DOCTYPE html>\n")
+		_W.WriteString("\t<html>\n")
+		_W.WriteString("\t\t<head>\n")
+		_W.WriteString("\t\t\t<title></title>\n")
+		_W.WriteString("\t\t</head>\n")
+		_W.WriteString("\t\t<body>\n")
+		_W.WriteString("\t\t\t<h1>Hello, ")
+		fmt.Fprintf(_W, "%v", name)
+		_W.WriteString("</h1>\n")
 		for key, val := range data {
-			w.Write([]byte(""))
-			w.Write([]byte("          <div><b>"))
-			fmt.Fprintf(w, "%s", key)
-			w.Write([]byte("</b>:<i>"))
-			fmt.Fprintf(w, "%s", val)
-			w.Write([]byte("</i></div>"))
-			w.Write([]byte("        "))
+			_W.WriteString("\t\t\t\t<div><b>")
+			fmt.Fprintf(_W, "%v", key)
+			_W.WriteString("</b>:<i>")
+			fmt.Fprintf(_W, "%v", val)
+			_W.WriteString("</i></div>\n")
 		}
-		w.Write([]byte(""))
-		w.Write([]byte("    </body>"))
-		w.Write([]byte("</html>"))
+		_W.WriteString("\t\t</body>\n")
+		_W.WriteString("\t</html>\n")
+		return _W.Bytes()
 	}
+

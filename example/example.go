@@ -2,21 +2,21 @@ package main
 
 import (
 	"fmt"
+	"local/gotemplator/example/templates"
 	"net/http"
-
-	"github.com/sg3des/templator"
 )
 
-//go:generate gotemplator ./
+//go:generate gotemplator ./templates
 func main() {
 	fmt.Println("start")
 
 	http.Handle("/", http.HandlerFunc(Route))
-	http.ListenAndServe("127.0.0.1:8080", nil)
+	http.ListenAndServe("127.0.0.1:8090", nil)
 
 	fmt.Println("end")
 }
 
 func Route(w http.ResponseWriter, r *http.Request) {
-	Index(w, []byte("World"), map[string]string{"Key1": "Val1", "Key2": "Val2"})
+	n, err := w.Write(templates.Index("World", map[int]string{34: "Val1", 35345: "Val2"}))
+	fmt.Println(n, err)
 }

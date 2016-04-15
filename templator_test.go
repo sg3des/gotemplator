@@ -6,9 +6,25 @@ import (
 	"testing"
 )
 
+func init() {
+	// *verbose = true
+	dir = "./example/templates/"
+}
+
+func TestGenerate(t *testing.T) {
+	gtms, err := Generate(dir) //if failed will be panic
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(gtms) == 0 {
+		t.Error("templates not found")
+	}
+}
+
 func TestPrint(t *testing.T) {
 	in := `<html>`
-	must := fmt.Sprintf(`w.Write([]byte("%s"))`, in)
+	must := fmt.Sprintf(`_W.WriteString("%s")`, in)
 
 	out := Print(in)
 
@@ -19,7 +35,7 @@ func TestPrint(t *testing.T) {
 
 func TestGoPrint_print(t *testing.T) {
 	in := `{{=name}}`
-	must := `fmt.Fprintf(w, "%s", name)`
+	must := `fmt.Fprintf(_W, "%v", name)`
 
 	out := GoPrint(in)
 	if out != must {
@@ -44,6 +60,13 @@ func TestScan(t *testing.T) {
 	if len(result) != 3 {
 		t.Error(errors.New("parse line failed"))
 	}
+
+	line = `// {{=name}}this is comment`
+	result = Scan(line)
+	if len(result) != 0 {
+		t.Error(errors.New("parse comment line failed"))
+	}
+
 }
 
 func TestParse(t *testing.T) {

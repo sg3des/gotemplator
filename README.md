@@ -4,8 +4,8 @@ Templator is alternative view on html templates for go - on my opinion, standard
 
 Why syntax in the templates must be different from the GO syntax?
 
-	1. Coplex html templates become pretty hard to understand.
-	2. Functions\pipeline calls are also very poor, we have to write functions such as eq, more, less, et.c.
+1. Coplex html templates become pretty hard to understand.
+2. Functions\pipeline calls are also very poor, we have to write functions such as eq, more, less, et.c.
 
 Templator generate **go** code from simply templates(*.gtm).
 

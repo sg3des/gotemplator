@@ -157,7 +157,7 @@ func Scan(line string) []string {
 			line = addWriter(line)
 		}
 
-		if regexp.MustCompile("^\\|\\|\\s*\\}\\s*$").MatchString(line) {
+		if regexp.MustCompile("^\\|\\|\\s*\\end\\s*$").MatchString(line) {
 			line = addReturn(line)
 		}
 

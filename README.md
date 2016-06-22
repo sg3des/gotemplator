@@ -47,7 +47,7 @@ example:
 	        {{ } }}
 	    </body>
 	</html>
-	|| }
+	|| end
 
 this is transform to:
 

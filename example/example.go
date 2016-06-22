@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"local/gotemplator/example/templates"
 	"net/http"
+
+	"github.com/sg3des/gotemplator/example/templates"
 )
 
 //go:generate gotemplator ./templates

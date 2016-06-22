@@ -6,6 +6,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -72,7 +73,13 @@ func Generate(dir string) (gtms []string, err error) {
 		}
 
 		if *verbose {
-			fmt.Println(string(filedata))
+			scanner := bufio.NewScanner(bytes.NewReader(filedata))
+			var i int
+			for scanner.Scan() {
+				i++
+				fmt.Println(i, scanner.Text())
+			}
+			// fmt.Println(string(filedata))
 		}
 
 		// save
@@ -143,25 +150,25 @@ func addFuncHandler(line string) string {
 //Scan is line parser
 func Scan(line string) []string {
 	//exclude comments
-	if regexp.MustCompile("^[\\s\t]*//").MatchString(line) {
+	if regexp.MustCompile("^[ 	]*//").MatchString(line) {
 		return []string{}
 	}
 
-	if regexp.MustCompile("^[\\s\t]*\\|\\|").MatchString(line) {
+	if regexp.MustCompile("^[ 	]*\\|\\|").MatchString(line) {
 
 		if regexp.MustCompile("\\|\\|=").MatchString(line) {
 			line = addFuncHandler(line)
 		}
 
-		if regexp.MustCompile("^\\|\\|\\s*template\\s").MatchString(line) {
+		if regexp.MustCompile("^\\|\\| *template ").MatchString(line) {
 			line = addWriter(line)
 		}
 
-		if regexp.MustCompile("^\\|\\|\\s*end\\s*$").MatchString(line) {
+		if regexp.MustCompile("^\\|\\| *end *$").MatchString(line) {
 			line = addReturn(line)
 		}
 
-		return []string{strings.Trim(line, "\t\\s| ")}
+		return []string{strings.Trim(line, " 	|")}
 	}
 
 	if regexp.MustCompile("{{.*?}}").MatchString(line) {

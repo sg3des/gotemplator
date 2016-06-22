@@ -70,7 +70,7 @@ func TestScan(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
-	gocode, err := Parse("./example/index.gtm")
+	gocode, err := Parse("./example/templates/index.gtm")
 	if err != nil {
 		t.Error(err)
 	}

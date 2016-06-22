@@ -1,3 +1,6 @@
-#sublime text syntax for templator
+#sublime text gotemplator plugins
 
-this is highlight syntax for templator(gtm) files for sublime text
+templator.json & templator.tmLanguage - syntax highlight for gotemplator templates(.gtm)
+
+gotemplator.py & gotemplator.sublime-settings - plugin for autogenerate templates(.gtm) on save
+

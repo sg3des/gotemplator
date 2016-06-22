@@ -24,22 +24,28 @@ import (
 
 var (
 	verbose   = flag.Bool("v", false, "verbose mode")
-	extension = flag.String("e", "gtm", "extension of templates")
+	extension = flag.String("e", ".gtm", "extension of templates")
 	dir       string
 )
 
 func init() {
 	flag.Parse()
-}
 
-//main is main
-func main() {
 	dir = flag.Arg(0)
+	if dir == "" {
+		dir, _ = os.Getwd()
+	} else {
+		dir, _ = filepath.Abs(dir)
+	}
+
 	if _, err := os.Stat(dir); err != nil {
 		fmt.Println("directory", dir, "not found")
 		os.Exit(1)
 	}
+}
 
+//main is main
+func main() {
 	_, err := Generate(dir)
 	if err != nil {
 		log.Fatal(err)
@@ -50,7 +56,7 @@ func main() {
 func Generate(dir string) (gtms []string, err error) {
 
 	//get all files. with extension .gtm in dir
-	gtms, err = filepath.Glob(path.Join(dir, "*."+*extension))
+	gtms, err = filepath.Glob(path.Join(dir, "*"+*extension))
 	if err != nil {
 		return
 	}
@@ -83,7 +89,7 @@ func Generate(dir string) (gtms []string, err error) {
 		}
 
 		// save
-		filename := regexp.MustCompile(*extension+"$").ReplaceAllString(gtm, "go")
+		filename := regexp.MustCompile(*extension+"$").ReplaceAllString(gtm, ".go")
 
 		filedata, err = imports.Process(filename, filedata, nil)
 		if err != nil {

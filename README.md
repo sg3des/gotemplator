@@ -34,19 +34,19 @@ everything else is html - which moved to go file how `_W.WriteString(string)`
 
 example:
 	
-	|| template Index(name string, data map[string]string) {
-	<!DOCTYPE html>
-	<html>
-	    <head>
-	        <title></title>
-	    </head>
-	    <body>
-	        <h1>Hello, {{=name}}</h1>
-	        {{for key,val := range data { }}
-	          <div><b>{{=key}}</b>:<i>{{=val}}</i></div>
-	        {{ } }}
-	    </body>
-	</html>
+	|| template Index(name string, data map[string]string)
+		<!DOCTYPE html>
+		<html>
+		    <head>
+		        <title></title>
+		    </head>
+		    <body>
+		        <h1>Hello, {{=name}}</h1>
+		        {{for key,val := range data { }}
+		          <div><b>{{=key}}</b>:<i>{{=val}}</i></div>
+		        {{ } }}
+		    </body>
+		</html>
 	|| end
 
 this is transform to:

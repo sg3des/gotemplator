@@ -120,7 +120,7 @@ func addPackageLine(filename string) string {
 
 func addWriter(line string) string {
 	line = strings.Replace(line, "template", "func", 1)
-	line = regexp.MustCompile("\\)\\s*\\{\\s*$").ReplaceAllString(line, ") []byte {")
+	line = regexp.MustCompile("\\)\\s*\\{*\\s*$").ReplaceAllString(line, ") []byte {")
 	writer := "\n_W := bytes.NewBuffer([]byte{});\n"
 
 	return line + writer

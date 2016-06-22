@@ -1,4 +1,4 @@
-|| template Index(name string, data map[int]string){ 
+|| template Index(name string, data map[int]string) 
 	<!DOCTYPE html>
 	<html>
 		<head>

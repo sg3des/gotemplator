@@ -36,7 +36,7 @@ everything else is html - which moved to go file how `_W.WriteString(string)`
 
 example:
 	
-```
+```html
 || template Index(users []string) 
 	<!DOCTYPE html>
 	<html>
@@ -68,15 +68,15 @@ import (
 func Index(users []string) []byte {
 	_W := new(bytes.Buffer)
 
-	_W.WriteString("\t<!DOCTYPE html>\t<html>\t\t<head>\t\t\t<title></title>\t\t</head>\t\t<body>\t\t\t<ul>")
+	_W.WriteString("<!DOCTYPE html><html><head><title></title></head><body><ul>")
 	for _, val := range users {
-		_W.WriteString("\t\t\t\t<li>")
+		_W.WriteString("<li>")
 		fmt.Fprintf(_W, "%v", val)
 		_W.WriteString("</li>")
 
 	}
 
-	_W.WriteString("\t\t\t</ul>\t\t</body>\t</html>")
+	_W.WriteString("</ul></body></html>")
 	return _W.Bytes()
 }
 ```
@@ -85,7 +85,7 @@ func Index(users []string) []byte {
 
 ### PERFOMANCE
 
-GoTemplator slower than [Hero](http://github.com/shiyanhui/hero/) as uses `fmt.Fprintf()` for write user varables.
+GoTemplator slower than [Hero](http://github.com/shiyanhui/hero/) as uses `fmt.Fprintf()` for write user varables and internal creation of `bytes.Buffer`.
 
 	BenchmarkGoTemplator-8  2000000	  767 ns/op	  400 B/op	  6 allocs/op
 	BenchmarkHero-8         3000000	  334 ns/op	  698 B/op	  0 allocs/op

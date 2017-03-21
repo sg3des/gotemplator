@@ -87,7 +87,7 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func BenchmarkIndex(b *testing.B) {
+func BenchmarkGoTemplator(b *testing.B) {
 	// var w = new(bytes.Buffer)
 	userlist := []string{
 		"Alice",

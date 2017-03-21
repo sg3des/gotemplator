@@ -8,14 +8,14 @@ import (
 func Index(users []string) []byte {
 	_W := new(bytes.Buffer)
 
-	_W.WriteString("\t<!DOCTYPE html>\t<html>\t\t<head>\t\t\t<title></title>\t\t</head>\t\t<body>\t\t\t<ul>")
+	_W.WriteString("<!DOCTYPE html><html><head><title></title></head><body><ul>")
 	for _, val := range users {
-		_W.WriteString("\t\t\t\t<li>")
+		_W.WriteString("<li>")
 		fmt.Fprintf(_W, "%v", val)
 		_W.WriteString("</li>")
 
 	}
 
-	_W.WriteString("\t\t\t</ul>\t\t</body>\t</html>")
+	_W.WriteString("</ul></body></html>")
 	return _W.Bytes()
 }

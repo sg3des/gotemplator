@@ -216,7 +216,7 @@ func Scan(line string, prevlines string) (string, string) {
 		return ret, ""
 	}
 
-	prevlines += line
+	prevlines += strings.TrimLeft(line, " \t\r\n")
 
 	return "", prevlines
 
@@ -228,7 +228,7 @@ func Print(str string) string {
 	if len(str) == 0 {
 		return ""
 	}
-	return fmt.Sprintf(`_W.WriteString(%s);`, strconv.Quote(str))
+	return fmt.Sprintf(`_W.WriteString(%s);`, strconv.Quote(strings.TrimLeft(str, " \t\r\n")))
 }
 
 //GoPrint return go code

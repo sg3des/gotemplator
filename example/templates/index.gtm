@@ -1,15 +1,16 @@
-|| template Index(name string, data map[int]string) 
+|| template Index(users []string) 
 	<!DOCTYPE html>
 	<html>
 		<head>
 			<title></title>
 		</head>
 		<body>
-			<h1>Hello, {{=name}}</h1>
-			|| for key,val := range data { 
-				<div><b>{{=key}}</b>:<i>{{=val}}</i></div>
+			<ul>
+			|| for _, val := range users { 
+				<li>{{=val}}</li>
 				// {{=key}} - this is comment and will not be in the .go file
 			|| } 
+			</ul>
 		</body>
 	</html>
 || end

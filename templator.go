@@ -1,7 +1,6 @@
 //Templator is  alternative view on html templates for go!
 //is the generator go code returned html
 
-//go:install
 package main
 
 import (
@@ -89,7 +88,8 @@ func Generate(dir string) (gtms []string, err error) {
 		}
 
 		// save
-		filename := regexp.MustCompile(*extension+"$").ReplaceAllString(gtm, ".go")
+		filename := strings.TrimSuffix(gtm, filepath.Ext(gtm)) + ".go"
+		// filename := regexp.MustCompile(*extension+"$").ReplaceAllString(gtm, ".go")
 
 		filedata, err = imports.Process(filename, filedata, nil)
 		if err != nil {
@@ -116,10 +116,12 @@ func Parse(filename string) ([]byte, error) {
 	newtemplate = append(newtemplate, addPackageLine(filename))
 
 	scanner := bufio.NewScanner(f)
+	var line, prevlines string
 	for scanner.Scan() {
-		line := scanner.Text()
+		line = scanner.Text()
 		if len(line) > 0 {
-			newtemplate = append(newtemplate, Scan(line)...)
+			line, prevlines = Scan(line, prevlines)
+			newtemplate = append(newtemplate, line)
 		}
 	}
 
@@ -134,7 +136,7 @@ func addPackageLine(filename string) string {
 func addWriter(line string) string {
 	line = strings.Replace(line, "template", "func", 1)
 	line = regexp.MustCompile("\\)\\s*\\{*\\s*$").ReplaceAllString(line, ") []byte {")
-	writer := "\n_W := bytes.NewBuffer([]byte{});\n"
+	writer := "\n_W := new(bytes.Buffer);\n"
 
 	return line + writer
 }
@@ -153,11 +155,13 @@ func addFuncHandler(line string) string {
 	return fmt.Sprintf("|| _W.Write(%s)", f[0][1])
 }
 
+// var prevlines string
+
 //Scan is line parser
-func Scan(line string) []string {
+func Scan(line string, prevlines string) (string, string) {
 	//exclude comments
 	if regexp.MustCompile("^[ 	]*//").MatchString(line) {
-		return []string{}
+		return "", ""
 	}
 
 	if regexp.MustCompile("^[ 	]*\\|\\|").MatchString(line) {
@@ -174,26 +178,57 @@ func Scan(line string) []string {
 			line = addReturn(line)
 		}
 
-		return []string{strings.Trim(line, " 	|")}
+		// var html string
+		// if prevlines != "" {
+		// 	html = Print(prevlines)
+		// 	prevlines = ""
+		// }
+
+		// lines :=
+
+		return Print(prevlines) + strings.Trim(line, " 	|"), ""
 	}
 
 	if regexp.MustCompile("{{.*?}}").MatchString(line) {
-		var ret []string
+		// var ret []string
 		aline := regexp.MustCompile("(.*?)({{.*?}})(.*)").FindAllStringSubmatch(line, -1)
+		// log.Printf("%#v", aline[0])
 
-		ret = append(ret, Print(aline[0][1]))   // print html before go code {{
-		ret = append(ret, GoPrint(aline[0][2])) // print go code in {{}}
-		ret = append(ret, Scan(aline[0][3])...) // parse string, what is left, after }}
+		ret := Print(prevlines) + Print(aline[0][1]) + GoPrint(aline[0][2])
+		add, prevlines := Scan(aline[0][3], "")
 
-		return ret
+		ret += add + Print(prevlines)
+
+		// ret = append(ret, Print(aline[0][1]))   // print html before go code {{
+		// ret = append(ret, GoPrint(aline[0][2])) // print go code in {{}}
+		// ret = append(ret, Scan(aline[0][3])...) // parse string, what is left, after }}
+
+		// log.Println(len(ret), ret)
+
+		// var html string
+		// if prevlines != "" {
+		// 	html = Print(prevlines)
+		// 	prevlines = ""
+		// }
+
+		// lines := append([]string{html}, ret...)
+
+		return ret, ""
 	}
 
-	return []string{Print(line + "\n")}
+	prevlines += line
+
+	return "", prevlines
+
+	// return []string{Print(line + "\n")}
 }
 
 //Print return write command for html code
 func Print(str string) string {
-	return fmt.Sprintf(`_W.WriteString(%s)`, strconv.Quote(str))
+	if len(str) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`_W.WriteString(%s);`, strconv.Quote(str))
 }
 
 //GoPrint return go code
@@ -201,7 +236,7 @@ func GoPrint(str string) string {
 	if regexp.MustCompile("{{=").MatchString(str) {
 		val := strings.Trim(str, "{}=")
 		// return fmt.Sprintf(`_W.Write("%s")`, val)
-		return `fmt.Fprintf(_W, "%v", ` + val + `)`
+		return `fmt.Fprintf(_W, "%v", ` + val + `);`
 	}
 	return strings.Trim(str, "{}")
 }

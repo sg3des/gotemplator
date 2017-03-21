@@ -1,12 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"log"
+	"net/http"
 	"testing"
+
+	"github.com/sg3des/gotemplator/example/templates"
+	"github.com/shiyanhui/hero/examples/app/template"
 )
 
 func init() {
+	log.SetFlags(log.Lshortfile)
 	// *verbose = true
 	dir = "./example/templates/"
 }
@@ -24,7 +31,7 @@ func TestGenerate(t *testing.T) {
 
 func TestPrint(t *testing.T) {
 	in := `<html>`
-	must := fmt.Sprintf(`_W.WriteString("%s")`, in)
+	must := fmt.Sprintf(`_W.WriteString("%s");`, in)
 
 	out := Print(in)
 
@@ -35,7 +42,7 @@ func TestPrint(t *testing.T) {
 
 func TestGoPrint_print(t *testing.T) {
 	in := `{{=name}}`
-	must := `fmt.Fprintf(_W, "%v", name)`
+	must := `fmt.Fprintf(_W, "%v", name);`
 
 	out := GoPrint(in)
 	if out != must {
@@ -56,13 +63,15 @@ func TestGoPrint_raw(t *testing.T) {
 
 func TestScan(t *testing.T) {
 	line := `<div>Hello, {{=name}}!</div>`
-	result := Scan(line)
-	if len(result) != 3 {
-		t.Error(errors.New("parse line failed"))
+	must := `_W.WriteString("<div>Hello, ");fmt.Fprintf(_W, "%v", name);_W.WriteString("!</div>");`
+	result, _ := Scan(line, "")
+	// t.Log(result)
+	if result != must {
+		t.Error(errors.New("parse line failed! received +" + result + " must " + must))
 	}
 
 	line = `// {{=name}}this is comment`
-	result = Scan(line)
+	result, _ = Scan(line, "")
 	if len(result) != 0 {
 		t.Error(errors.New("parse comment line failed"))
 	}
@@ -76,5 +85,53 @@ func TestParse(t *testing.T) {
 	}
 	if len(gocode) == 0 {
 		t.Error(errors.New("length of returned code is zero"))
+	}
+}
+
+func BenchmarkNative(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		resp, err := http.Get("http://127.0.0.1:8090/Native")
+		if err != nil {
+			b.Fatal(err)
+		}
+		resp.Body.Close()
+		// fmt.Println(resp.StatusCode)
+	}
+}
+
+func BenchmarkGoWriter(b *testing.B) {
+	// var w = new(bytes.Buffer)
+	userlist := []string{
+		"Alice",
+		"Bob",
+		"Tom",
+	}
+	for n := 0; n < b.N; n++ {
+		templates.Writer(userlist)
+	}
+}
+
+func BenchmarkGoIndex(b *testing.B) {
+	// var w = new(bytes.Buffer)
+	userlist := []string{
+		"Alice",
+		"Bob",
+		"Tom",
+	}
+	for n := 0; n < b.N; n++ {
+		templates.Index(userlist)
+	}
+}
+
+func BenchmarkHero(b *testing.B) {
+	buffer := new(bytes.Buffer)
+	userlist := []string{
+		"Alice",
+		"Bob",
+		"Tom",
+	}
+	for n := 0; n < b.N; n++ {
+		template.UserList(userlist, buffer)
+
 	}
 }

@@ -121,7 +121,9 @@ func Parse(filename string) ([]byte, error) {
 		line = scanner.Text()
 		if len(line) > 0 {
 			line, prevlines = Scan(line, prevlines)
-			newtemplate = append(newtemplate, line)
+			if len(line) > 0 {
+				newtemplate = append(newtemplate, line)
+			}
 		}
 	}
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"testing"
 
 	"github.com/sg3des/gotemplator/example/templates"
@@ -88,30 +87,7 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func BenchmarkNative(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		resp, err := http.Get("http://127.0.0.1:8090/Native")
-		if err != nil {
-			b.Fatal(err)
-		}
-		resp.Body.Close()
-		// fmt.Println(resp.StatusCode)
-	}
-}
-
-func BenchmarkGoWriter(b *testing.B) {
-	// var w = new(bytes.Buffer)
-	userlist := []string{
-		"Alice",
-		"Bob",
-		"Tom",
-	}
-	for n := 0; n < b.N; n++ {
-		templates.Writer(userlist)
-	}
-}
-
-func BenchmarkGoIndex(b *testing.B) {
+func BenchmarkIndex(b *testing.B) {
 	// var w = new(bytes.Buffer)
 	userlist := []string{
 		"Alice",
@@ -132,6 +108,5 @@ func BenchmarkHero(b *testing.B) {
 	}
 	for n := 0; n < b.N; n++ {
 		template.UserList(userlist, buffer)
-
 	}
 }

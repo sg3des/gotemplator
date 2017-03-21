@@ -22,7 +22,7 @@ OR use go generate:
 
 ## SYNTAX
 
-Template syntax is hybrid of html and go, have only 3 rules:
+Template syntax is hybrid of html and go, have only 4 rules:
 
 1) if the line begins with `||` - then this is go code which is unchanged moved to go file
 
@@ -30,55 +30,62 @@ Template syntax is hybrid of html and go, have only 3 rules:
 
 3) code in `{{=var}}` - is short print variable
 
+4) if the line like `||=Header(somevariable)` - then should call another section or any function returned `[]byte`
+
 everything else is html - which moved to go file how `_W.WriteString(string)`
 
 example:
 	
-	|| template Index(name string, data map[string]string)
-		<!DOCTYPE html>
-		<html>
-		    <head>
-		        <title></title>
-		    </head>
-		    <body>
-		        <h1>Hello, {{=name}}</h1>
-		        {{for key,val := range data { }}
-		          <div><b>{{=key}}</b>:<i>{{=val}}</i></div>
-		        {{ } }}
-		    </body>
-		</html>
-	|| end
+```
+|| template Index(users []string) 
+	<!DOCTYPE html>
+	<html>
+		<head>
+			<title></title>
+		</head>
+		<body>
+			<ul>
+			|| for _, val := range users { 
+				<li>{{=val}}</li>
+				// {{=key}} - this is comment and will not be in the .go file
+			|| } 
+			</ul>
+		</body>
+	</html>
+|| end
+```
 
 this is transform to:
 
-	package templates
+```go
+package templates
 
-	import (
-		"bytes"
-		"fmt"
-	)
+import (
+	"bytes"
+	"fmt"
+)
 
-	func Index(name string, data map[int]string) []byte {
-		_W := bytes.NewBuffer([]byte{})
+func Index(users []string) []byte {
+	_W := new(bytes.Buffer)
 
-		_W.WriteString("\t<!DOCTYPE html>\n")
-		_W.WriteString("\t<html>\n")
-		_W.WriteString("\t\t<head>\n")
-		_W.WriteString("\t\t\t<title></title>\n")
-		_W.WriteString("\t\t</head>\n")
-		_W.WriteString("\t\t<body>\n")
-		_W.WriteString("\t\t\t<h1>Hello, ")
-		fmt.Fprintf(_W, "%v", name)
-		_W.WriteString("</h1>\n")
-		for key, val := range data {
-			_W.WriteString("\t\t\t\t<div><b>")
-			fmt.Fprintf(_W, "%v", key)
-			_W.WriteString("</b>:<i>")
-			fmt.Fprintf(_W, "%v", val)
-			_W.WriteString("</i></div>\n")
-		}
-		_W.WriteString("\t\t</body>\n")
-		_W.WriteString("\t</html>\n")
-		return _W.Bytes()
+	_W.WriteString("\t<!DOCTYPE html>\t<html>\t\t<head>\t\t\t<title></title>\t\t</head>\t\t<body>\t\t\t<ul>")
+	for _, val := range users {
+		_W.WriteString("\t\t\t\t<li>")
+		fmt.Fprintf(_W, "%v", val)
+		_W.WriteString("</li>")
+
 	}
 
+	_W.WriteString("\t\t\t</ul>\t\t</body>\t</html>")
+	return _W.Bytes()
+}
+```
+
+
+
+### PERFOMANCE
+
+GoTemplator slower than [Hero](http://github.com/shiyanhui/hero/) as uses `fmt.Fprintf()` for write user varables.
+
+	BenchmarkGoTemplator-8  2000000	  767 ns/op	  400 B/op	  6 allocs/op
+	BenchmarkHero-8         3000000	  334 ns/op	  698 B/op	  0 allocs/op

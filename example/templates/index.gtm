@@ -6,8 +6,8 @@
 		</head>
 		<body>
 			<ul>
-			|| for _, val := range users { 
-				<li>{{=val}}</li>
+			|| for i, val := range users { 
+				<li>{{?i==0?"selected":i}} {{=val}}</li>
 				// {{=key}} - this is comment and will not be in the .go file
 			|| } 
 			</ul>

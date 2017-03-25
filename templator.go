@@ -28,6 +28,7 @@ var (
 )
 
 func init() {
+	log.SetFlags(log.Lshortfile)
 	flag.Parse()
 
 	dir = flag.Arg(0)
@@ -74,7 +75,7 @@ func Generate(dir string) (gtms []string, err error) {
 		//parse gtm
 		filedata, err = Parse(gtm)
 		if err != nil {
-			return
+			return gtms, fmt.Errorf("failed parse file %s, reason: %s", gtm, err)
 		}
 
 		if *verbose {
@@ -93,7 +94,7 @@ func Generate(dir string) (gtms []string, err error) {
 
 		filedata, err = imports.Process(filename, filedata, nil)
 		if err != nil {
-			return
+			return gtms, fmt.Errorf("failed execute `goimport`, error: %s", err)
 		}
 
 		if err = ioutil.WriteFile(filename, filedata, 0755); err != nil {
@@ -180,14 +181,6 @@ func Scan(line string, prevlines string) (string, string) {
 			line = addReturn(line)
 		}
 
-		// var html string
-		// if prevlines != "" {
-		// 	html = Print(prevlines)
-		// 	prevlines = ""
-		// }
-
-		// lines :=
-
 		return Print(prevlines) + strings.Trim(line, " 	|"), ""
 	}
 
@@ -201,44 +194,48 @@ func Scan(line string, prevlines string) (string, string) {
 
 		ret += add + Print(prevlines)
 
-		// ret = append(ret, Print(aline[0][1]))   // print html before go code {{
-		// ret = append(ret, GoPrint(aline[0][2])) // print go code in {{}}
-		// ret = append(ret, Scan(aline[0][3])...) // parse string, what is left, after }}
-
-		// log.Println(len(ret), ret)
-
-		// var html string
-		// if prevlines != "" {
-		// 	html = Print(prevlines)
-		// 	prevlines = ""
-		// }
-
-		// lines := append([]string{html}, ret...)
-
 		return ret, ""
 	}
 
 	prevlines += strings.TrimLeft(line, " \t\r\n")
 
 	return "", prevlines
-
-	// return []string{Print(line + "\n")}
 }
 
 //Print return write command for html code
 func Print(str string) string {
-	if len(str) == 0 {
+	str = strings.TrimLeft(str, " \t\r\n")
+	if str == "" {
 		return ""
 	}
-	return fmt.Sprintf(`_W.WriteString(%s);`, strconv.Quote(strings.TrimLeft(str, " \t\r\n")))
+
+	return fmt.Sprintf(`_W.WriteString(%s);`, strconv.Quote(str))
 }
 
 //GoPrint return go code
 func GoPrint(str string) string {
 	if regexp.MustCompile("{{=").MatchString(str) {
 		val := strings.Trim(str, "{}=")
-		// return fmt.Sprintf(`_W.Write("%s")`, val)
-		return `fmt.Fprintf(_W, "%v", ` + val + `);`
+		return `fmt.Fprintf(_W, "%v", ` + val + `);` + "\n"
 	}
-	return strings.Trim(str, "{}")
+
+	if regexp.MustCompile("{{?").MatchString(str) {
+		matches := regexp.MustCompile("{{\\?(.*?)\\?(.*?)(:.*)}}").FindAllStringSubmatch(str, -1)
+		if len(matches) == 0 || len(matches[0]) != 4 {
+			log.Fatalln("failed parse ternary operator", str)
+		}
+
+		_if := matches[0][1]
+		_then := matches[0][2]
+		_else := strings.TrimLeft(matches[0][3], `:`)
+
+		condition := fmt.Sprintf("\nif %s {\n fmt.Fprintf(_W,\"%%v\",%s); \n}", _if, _then)
+		if _else != "" {
+			condition += fmt.Sprintf(" else { fmt.Fprintf(_W,\"%%v\",%s); }\n", _else)
+		}
+		return condition
+		// log.Println(condition, then, or)
+	}
+
+	return "\n" + strings.Trim(str, "{}")
 }

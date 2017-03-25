@@ -220,10 +220,12 @@ func GoPrint(str string) string {
 	}
 
 	if regexp.MustCompile("{{?").MatchString(str) {
-		matches := regexp.MustCompile("{{\\?(.*?)\\?(.*?)(:.*)}}").FindAllStringSubmatch(str, -1)
+		matches := regexp.MustCompile("{{\\?(.*?)\\?(.*?)(:.*)?}}").FindAllStringSubmatch(str, -1)
 		if len(matches) == 0 || len(matches[0]) != 4 {
 			log.Fatalln("failed parse ternary operator", str)
 		}
+
+		// log.Println()
 
 		_if := matches[0][1]
 		_then := matches[0][2]
@@ -232,6 +234,8 @@ func GoPrint(str string) string {
 		condition := fmt.Sprintf("\nif %s {\n fmt.Fprintf(_W,\"%%v\",%s); \n}", _if, _then)
 		if _else != "" {
 			condition += fmt.Sprintf(" else { fmt.Fprintf(_W,\"%%v\",%s); }\n", _else)
+		} else {
+			condition += ";\n"
 		}
 		return condition
 		// log.Println(condition, then, or)

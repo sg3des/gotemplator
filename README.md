@@ -22,7 +22,7 @@ OR use go generate:
 
 ## SYNTAX
 
-Template syntax is hybrid of html and go, have only 4 rules:
+Template syntax is hybrid of html and go, have only 5 rules:
 
 1) if the line begins with `||` - then this is go code which is unchanged moved to go file
 
@@ -31,6 +31,8 @@ Template syntax is hybrid of html and go, have only 4 rules:
 3) code in `{{=var}}` - is short print variable
 
 4) if the line like `||=Header(somevariable)` - then should call another section or any function returned `[]byte`
+
+5) simple ternary operator - `{{?condition?then:else}}`, ex: `class='{{?len(val)>10?"long":"short"}}'`
 
 everything else is html - which moved to go file how `_W.WriteString(string)`
 
@@ -45,8 +47,8 @@ example:
 		</head>
 		<body>
 			<ul>
-			|| for _, val := range users { 
-				<li>{{=val}}</li>
+			|| for i, val := range users { 
+				<li>{{?i==0?"selected":i}} {{=val}}</li>
 				// {{=key}} - this is comment and will not be in the .go file
 			|| } 
 			</ul>
@@ -69,8 +71,13 @@ func Index(users []string) []byte {
 	_W := new(bytes.Buffer)
 
 	_W.WriteString("<!DOCTYPE html><html><head><title></title></head><body><ul>")
-	for _, val := range users {
+	for i, val := range users {
 		_W.WriteString("<li>")
+		if i == 0 {
+			fmt.Fprintf(_W, "%v", "selected")
+		} else {
+			fmt.Fprintf(_W, "%v", i)
+		}
 		fmt.Fprintf(_W, "%v", val)
 		_W.WriteString("</li>")
 	}

@@ -106,24 +106,24 @@ func Generate(dir string) (gtms []string, err error) {
 
 //Parse is parser for .gtm file and return go code
 func Parse(filename string) ([]byte, error) {
-
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0755)
 	if err != nil {
 		return []byte{}, err
 	}
 
-	var newtemplate []string
-
-	newtemplate = append(newtemplate, addPackageLine(filename))
+	newtemplate := []string{addPackageLine(filename)}
 
 	scanner := bufio.NewScanner(f)
-	var line, prevlines string
+
+	// var line string
+	var htmlLines []string
+
 	for scanner.Scan() {
-		line = scanner.Text()
+		line := scanner.Text()
 		if len(line) > 0 {
-			line, prevlines = Scan(line, prevlines)
+			golines := Scan(line, &htmlLines)
 			if len(line) > 0 {
-				newtemplate = append(newtemplate, line)
+				newtemplate = append(newtemplate, golines...)
 			}
 		}
 	}
@@ -139,13 +139,13 @@ func addPackageLine(filename string) string {
 func addWriter(line string) string {
 	line = strings.Replace(line, "template", "func", 1)
 	line = regexp.MustCompile("\\)\\s*\\{*\\s*$").ReplaceAllString(line, ") []byte {")
-	writer := "\n_W := new(bytes.Buffer);\n"
+	writer := "\n	_W := new(bytes.Buffer);\n"
 
 	return line + writer
 }
 
 func addReturn(line string) string {
-	line = "|| return _W.Bytes()\n}"
+	line = "return _W.Bytes()\n}"
 	return line
 }
 
@@ -155,91 +155,124 @@ func addFuncHandler(line string) string {
 	if len(f[0]) != 2 {
 		log.Fatal(errors.New("called function not found check your template at string" + line))
 	}
-	return fmt.Sprintf("|| _W.Write(%s)", f[0][1])
+	return fmt.Sprintf("_W.Write(%s)", f[0][1])
 }
 
-// var prevlines string
-
 //Scan is line parser
-func Scan(line string, prevlines string) (string, string) {
-	//exclude comments
-	if regexp.MustCompile("^[ 	]*//").MatchString(line) {
-		return "", ""
+func Scan(line string, htmlLines *[]string) []string {
+	line = strings.Trim(line, " 	")
+
+	if line == "" {
+		return []string{}
 	}
 
-	if regexp.MustCompile("^[ 	]*\\|\\|").MatchString(line) {
+	//ignore comments
+	if len(line) >= 2 && line[:2] == "//" {
+		return []string{}
+	}
 
-		if regexp.MustCompile("\\|\\|=").MatchString(line) {
+	//go code
+	if len(line) >= 2 && line[:2] == "||" {
+
+		line = line[2:]
+		switch {
+		case line[0] == '=': //print other template
 			line = addFuncHandler(line)
-		}
-
-		if regexp.MustCompile("^\\|\\| *template ").MatchString(line) {
+		case regexp.MustCompile("^ *template").MatchString(line):
 			line = addWriter(line)
-		}
-
-		if regexp.MustCompile("^\\|\\| *end *$").MatchString(line) {
+		case regexp.MustCompile("^ *end").MatchString(line):
 			line = addReturn(line)
 		}
 
-		return Print(prevlines) + strings.Trim(line, " 	|"), ""
+		doneLines := []string{PrintHTML(*htmlLines...), line}
+		*htmlLines = []string{}
+		return doneLines
 	}
 
+	//inline go code
 	if regexp.MustCompile("{{.*?}}").MatchString(line) {
-		// var ret []string
+
 		aline := regexp.MustCompile("(.*?)({{.*?}})(.*)").FindAllStringSubmatch(line, -1)
-		// log.Printf("%#v", aline[0])
 
-		ret := Print(prevlines) + Print(aline[0][1]) + GoPrint(aline[0][2])
-		add, prevlines := Scan(aline[0][3], "")
+		var doneLines []string
+		if len(*htmlLines) > 0 {
+			doneLines = append(doneLines, PrintHTML(*htmlLines...))
+			*htmlLines = []string{}
+		}
+		doneLines = append(doneLines, PrintHTML(aline[0][1]))
+		doneLines = append(doneLines, GoPrint(aline[0][2]))
 
-		ret += add + Print(prevlines)
+		add := Scan(aline[0][3], htmlLines)
+		if len(add) != 0 {
+			doneLines = append(doneLines, add...) //append(add, PrintHTML(*htmlLines...))...)
+		}
+		if len(*htmlLines) > 0 {
+			doneLines = append(doneLines, PrintHTML(*htmlLines...))
+			*htmlLines = []string{}
+		}
 
-		return ret, ""
+		return doneLines
 	}
 
-	prevlines += strings.TrimLeft(line, " \t\r\n")
+	//html
+	*htmlLines = append(*htmlLines, strings.TrimLeft(line, " \t\r\n"))
 
-	return "", prevlines
+	return []string{}
 }
 
 //Print return write command for html code
-func Print(str string) string {
-	str = strings.TrimLeft(str, " \t\r\n")
-	if str == "" {
+func PrintHTML(htmlLines ...string) string {
+	if len(htmlLines) == 0 {
 		return ""
 	}
 
-	return fmt.Sprintf(`_W.WriteString(%s);`, strconv.Quote(str))
+	htmlCode := strings.TrimLeft(strings.Join(htmlLines, "\n"), " \t\r\n")
+	if htmlCode == "" {
+		return ""
+	}
+
+	return fmt.Sprintf(`_W.WriteString(%s)`, strconv.Quote(htmlCode))
 }
 
 //GoPrint return go code
 func GoPrint(str string) string {
-	if regexp.MustCompile("{{=").MatchString(str) {
-		val := strings.Trim(str, "{}=")
-		return `fmt.Fprintf(_W, "%v", ` + val + `);` + "\n"
-	}
 
-	if regexp.MustCompile("{{?").MatchString(str) {
-		matches := regexp.MustCompile("{{\\?(.*?)\\?(.*?)(:.*)?}}").FindAllStringSubmatch(str, -1)
-		if len(matches) == 0 || len(matches[0]) != 4 {
-			log.Fatalln("failed parse ternary operator", str)
+	if len(str) > 6 {
+		//print variable
+		if str[:3] == "{{=" {
+			val := strings.Trim(str, "{}=")
+			return `fmt.Fprintf(_W, "%v", ` + val + `)`
 		}
 
-		// log.Println()
+		//ternary operator
+		if str[:3] == "{{?" {
+			matches := regexp.MustCompile("{{\\?(.*?)\\?(.*?)(:.*)?}}").FindAllStringSubmatch(str, -1)
+			if len(matches) == 0 || len(matches[0]) != 4 {
+				log.Fatalln("failed parse ternary operator", str)
+			}
 
-		_if := matches[0][1]
-		_then := matches[0][2]
-		_else := strings.TrimLeft(matches[0][3], `:`)
+			_if := matches[0][1]
+			_then := matches[0][2]
+			_else := strings.TrimLeft(matches[0][3], `:`)
 
-		condition := fmt.Sprintf("\nif %s {\n fmt.Fprintf(_W,\"%%v\",%s); \n}", _if, _then)
-		if _else != "" {
-			condition += fmt.Sprintf(" else { fmt.Fprintf(_W,\"%%v\",%s); }\n", _else)
-		} else {
-			condition += ";\n"
+			condition := []string{
+				fmt.Sprintf("if %s {", _if),
+				fmt.Sprintf("fmt.Fprintf(_W, \"%%v\", %s)", _then),
+				"}",
+			}
+
+			if _else != "" {
+				conditionElse := []string{
+					"} else {",
+					fmt.Sprintf("fmt.Fprintf(_W,\"%%v\",%s)", _else),
+					"}",
+				}
+				condition = append(condition[:2], conditionElse...)
+			}
+
+			return strings.Join(condition, "\n")
 		}
-		return condition
-		// log.Println(condition, then, or)
 	}
 
-	return "\n" + strings.Trim(str, "{}")
+	return strings.Trim(str, "{}")
 }

@@ -150,9 +150,10 @@ func addReturn(line string) string {
 }
 
 func addFuncHandler(line string) string {
-	f := regexp.MustCompile("\\|\\|\\=(.*)").FindAllStringSubmatch(line, -1)
+	f := regexp.MustCompile("=(.*)").FindAllStringSubmatch(line, -1)
+	// log.Println(f, line)
 
-	if len(f[0]) != 2 {
+	if len(f) == 0 || len(f[0]) != 2 {
 		log.Fatal(errors.New("called function not found check your template at string" + line))
 	}
 	return fmt.Sprintf("_W.Write(%s)", f[0][1])

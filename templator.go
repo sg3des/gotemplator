@@ -7,7 +7,6 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -18,90 +17,85 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sg3des/argum"
+
 	"golang.org/x/tools/imports"
 )
 
-var (
-	verbose   = flag.Bool("v", false, "verbose mode")
-	extension = flag.String("e", ".gtm", "extension of templates")
-	dir       string
-)
+var args struct {
+	Verbose bool   `argum:"-v,--verbose" help:"verbose mode"`
+	Ext     string `argum:"-e,--ext" help:"file extension of templates" default:".gtm"`
+	Path    string `argum:"pos,req" help:"path to directory with templates or file template"`
+}
 
 func init() {
 	log.SetFlags(log.Lshortfile)
-	flag.Parse()
 
-	dir = flag.Arg(0)
-	if dir == "" {
-		dir, _ = os.Getwd()
-	} else {
-		dir, _ = filepath.Abs(dir)
+	argum.Version = "1.1.3.170329"
+	argum.MustParse(&args)
+}
+
+func main() {
+	files, err := getFiles(args.Path, args.Ext)
+	if err != nil {
+		log.Fatalln(err)
 	}
 
-	if _, err := os.Stat(dir); err != nil {
-		fmt.Println("directory", dir, "not found")
-		os.Exit(1)
+	for _, gtmfile := range files {
+		filedata, err := generate(gtmfile)
+		if err != nil {
+			fmt.Println(filedata)
+			log.Fatalln(err)
+		}
 	}
 }
 
-//main is main
-func main() {
-	_, err := Generate(dir)
+func getFiles(dir, ext string) ([]string, error) {
+	fi, err := os.Stat(dir)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
+
+	if !fi.IsDir() {
+		return []string{dir}, nil
+	}
+
+	return filepath.Glob(path.Join(dir, "*"+args.Ext))
 }
 
 //Generate find all gtm templates in directory, generate go code and save it
-func Generate(dir string) (gtms []string, err error) {
+func generate(gtm string) ([]byte, error) {
+	if args.Verbose {
+		fmt.Println(gtm)
+	}
 
-	//get all files. with extension .gtm in dir
-	gtms, err = filepath.Glob(path.Join(dir, "*"+*extension))
+	//parse gtm
+	filedata, err := Parse(gtm)
 	if err != nil {
-		return
+		return filedata, fmt.Errorf("failed parse file %s, reason: %s", gtm, err)
 	}
 
-	if *verbose {
-		fmt.Println("find", len(gtms), "template files")
+	if args.Verbose {
+		scanner := bufio.NewScanner(bytes.NewReader(filedata))
+		var i int
+		for scanner.Scan() {
+			i++
+			fmt.Println(i, scanner.Text())
+		}
+		// fmt.Println(string(filedata))
 	}
 
-	//generate it
-	for _, gtm := range gtms {
-		if *verbose {
-			fmt.Println(gtm)
-		}
-		var filedata []byte
+	// save
+	filename := strings.TrimSuffix(gtm, filepath.Ext(gtm)) + ".go"
+	// filename := regexp.MustCompile(*extension+"$").ReplaceAllString(gtm, ".go")
 
-		//parse gtm
-		filedata, err = Parse(gtm)
-		if err != nil {
-			return gtms, fmt.Errorf("failed parse file %s, reason: %s", gtm, err)
-		}
-
-		if *verbose {
-			scanner := bufio.NewScanner(bytes.NewReader(filedata))
-			var i int
-			for scanner.Scan() {
-				i++
-				fmt.Println(i, scanner.Text())
-			}
-			// fmt.Println(string(filedata))
-		}
-
-		// save
-		filename := strings.TrimSuffix(gtm, filepath.Ext(gtm)) + ".go"
-		// filename := regexp.MustCompile(*extension+"$").ReplaceAllString(gtm, ".go")
-
-		filedata, err = imports.Process(filename, filedata, nil)
-		if err != nil {
-			return gtms, fmt.Errorf("failed execute `goimport`, error: %s", err)
-		}
-
-		if err = ioutil.WriteFile(filename, filedata, 0755); err != nil {
-			return
-		}
+	filedata, err = imports.Process(filename, filedata, nil)
+	if err != nil {
+		return filedata, fmt.Errorf("failed execute `goimport`, error: %s", err)
 	}
-	return
+
+	err = ioutil.WriteFile(filename, filedata, 0755)
+	return filedata, err
 }
 
 //Parse is parser for .gtm file and return go code

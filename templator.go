@@ -55,6 +55,10 @@ func main() {
 			displayGeneratedCode(lines)
 		}
 
+		// log.Println(string(lines[1]))
+
+		// return
+
 		filename := strings.TrimSuffix(gtmfilename, filepath.Ext(gtmfilename)) + ".go"
 		opt := &imports.Options{AllErrors: true}
 		importsData, err := imports.Process(filename, bytes.Join(lines, []byte("\n")), opt)
@@ -175,7 +179,7 @@ func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) 
 			lines = append(lines, parseTernary(gocode)...)
 		case '=':
 			var suffixHTML []byte
-			if bytes.Index(line, []byte("{{")) == -1 && bytes.Index(line, []byte("}}")) == -1 {
+			if !bytes.Contains(line, []byte("{{")) && !bytes.Contains(line, []byte("}}")) {
 				suffixHTML = line
 				line = nil
 			}
@@ -206,7 +210,7 @@ func addFuncBegin(line []byte) (lines [][]byte, writerExist bool) {
 		writerExist = true
 		lines = append(lines, append(line, []byte(" {")...))
 	} else {
-		line = regexp.MustCompile("\\)\\s*\\{*\\s*$").ReplaceAll(line, []byte(") []byte {"))
+		line = regexp.MustCompile("\\) *\\{* *$").ReplaceAll(line, []byte(") []byte {"))
 		writer := []byte("w := new(bytes.Buffer)")
 		lines = append(lines, line)
 		lines = append(lines, writer)
@@ -237,9 +241,9 @@ var (
 	reComment = regexp.MustCompile("[ 	]*//")
 	reGoLine  = regexp.MustCompile("[ 	]*\\|\\|.+")
 
-	reInlineTernary = regexp.MustCompile("{{\\?.+?}}")
-	reInlineGoPrint = regexp.MustCompile("{{=.+?}}")
-	reInlineSplit   = regexp.MustCompile("(.*?){{(.+?)}}(.*)")
+// 	reInlineTernary = regexp.MustCompile("{{\\?.+?}}")
+// 	reInlineGoPrint = regexp.MustCompile("{{=.+?}}")
+// 	reInlineSplit   = regexp.MustCompile("(.*?){{(.+?)}}(.*)")
 )
 
 func parseGoLine(line []byte, writerExist *bool) (lines [][]byte) {
@@ -248,7 +252,7 @@ func parseGoLine(line []byte, writerExist *bool) (lines [][]byte) {
 	var morelines [][]byte
 	// var writerExist bool
 	// line = line[2:]
-
+	// log.Println(string(line))
 	switch {
 	case line[0] == '=': //print other template
 		morelines = addFuncHandler(line)
@@ -307,7 +311,6 @@ func printGocode(prefixHTML, gocode, suffixHTML []byte) []byte {
 
 	validateFragment(gocode, s)
 	return s
-	// return []byte(`fmt.Fprintf(w, "` + string(prefixHTML) + `%v` + string(suffixHTML) + `", ` + string(gocode) + `)`)
 }
 
 //PrintHTML return write command for html code
@@ -336,37 +339,3 @@ func validateFragment(original []byte, lines ...[]byte) {
 		log.Fatalln(err)
 	}
 }
-
-// func GoTernary(gocode []byte) (lines [][]byte) {
-// 	gocode = bytes.Trim(gocode, "?")
-
-// 	nq := bytes.Index(gocode, []byte("?"))
-// 	if nq <= 0 {
-// 		log.Fatalln("failed parse ternary operator", string(gocode))
-// 	}
-
-// 	_if := fmt.Sprintf("if %s {", string(gocode[:nq]))
-// 	_then := fmt.Sprintf("fmt.Fprintf(w, \"%%v\", %s)", gocode[nq+1:])
-
-// 	lines = append(lines, []byte(_if))
-// 	lines = append(lines, []byte(_then))
-// 	lines = append(lines, []byte("}"))
-
-// 	nc := bytes.Index(gocode, []byte(":"))
-// 	if nc > 0 {
-// 		lines[2] = []byte("} else {")
-// 		_else := fmt.Sprintf("fmt.Fprintf(w, \"%%v\", %s)", gocode[nc+1:])
-// 		lines = append(lines, []byte(_else))
-// 	}
-
-// 	return
-// }
-
-// //GoPrint return go code
-// func GoPrint(prefixHTML, gocode, suffixHTML []byte) (lines [][]byte) {
-// 	// log.Println(string(prefixHTML), string(gocode), string(suffixHTML))
-
-// 	gocode = bytes.Trim(gocode, "=")
-// 	lines = append(lines, []byte(`fmt.Fprintf(w, "`+string(prefixHTML)+`%v`+string(suffixHTML)+`", `+string(gocode)+`)`))
-// 	return
-// }

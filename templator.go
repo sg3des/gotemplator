@@ -6,7 +6,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -33,6 +32,7 @@ func init() {
 
 	argum.Version = "1.1.3.170329"
 	argum.MustParse(&args)
+	// arg.MustParse(&args)
 }
 
 func main() {
@@ -41,12 +41,40 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	for _, gtmfile := range files {
-		filedata, err := generate(gtmfile)
+	for _, gtmfilename := range files {
+		if args.Verbose {
+			fmt.Println(gtmfilename)
+		}
+
+		lines, err := Parse(gtmfilename)
 		if err != nil {
-			fmt.Println(filedata)
 			log.Fatalln(err)
 		}
+
+		if args.Verbose {
+			displayGeneratedCode(lines)
+		}
+
+		filename := strings.TrimSuffix(gtmfilename, filepath.Ext(gtmfilename)) + ".go"
+		opt := &imports.Options{AllErrors: true}
+		importsData, err := imports.Process(filename, bytes.Join(lines, []byte("\n")), opt)
+		if err != nil {
+			log.Println(err)
+			s := err.Error()
+			s = s[strings.Index(s, ":")+1:]
+			s = s[:strings.Index(s, ":")]
+
+			_, err := strconv.Atoi(s)
+			if err != nil {
+				log.Println(err)
+			}
+
+			// log.Println(string(filedata))
+			displayGeneratedCode(lines)
+			return
+		}
+
+		err = ioutil.WriteFile(filename, importsData, 0755)
 	}
 }
 
@@ -63,211 +91,282 @@ func getFiles(dir, ext string) ([]string, error) {
 	return filepath.Glob(path.Join(dir, "*"+args.Ext))
 }
 
-//Generate find all gtm templates in directory, generate go code and save it
-func generate(gtm string) ([]byte, error) {
-	if args.Verbose {
-		fmt.Println(gtm)
+func displayGeneratedCode(lines [][]byte) {
+	for i, line := range lines {
+		fmt.Printf("%d: %s\n", i, string(line))
 	}
-
-	//parse gtm
-	filedata, err := Parse(gtm)
-	if err != nil {
-		return filedata, fmt.Errorf("failed parse file %s, reason: %s", gtm, err)
-	}
-
-	if args.Verbose {
-		scanner := bufio.NewScanner(bytes.NewReader(filedata))
-		var i int
-		for scanner.Scan() {
-			i++
-			fmt.Println(i, scanner.Text())
-		}
-		// fmt.Println(string(filedata))
-	}
-
-	// save
-	filename := strings.TrimSuffix(gtm, filepath.Ext(gtm)) + ".go"
-	// filename := regexp.MustCompile(*extension+"$").ReplaceAllString(gtm, ".go")
-
-	filedata, err = imports.Process(filename, filedata, nil)
-	if err != nil {
-		return filedata, fmt.Errorf("failed execute `goimport`, error: %s", err)
-	}
-
-	err = ioutil.WriteFile(filename, filedata, 0755)
-	return filedata, err
 }
 
 //Parse is parser for .gtm file and return go code
-func Parse(filename string) ([]byte, error) {
+func Parse(filename string) (lines [][]byte, err error) {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0755)
 	if err != nil {
-		return []byte{}, err
+		return lines, err
 	}
 
-	newtemplate := []string{addPackageLine(filename)}
+	lines = append(lines, addPackageLine(filename))
+	var htmlLines [][]byte
 
 	scanner := bufio.NewScanner(f)
-
-	// var line string
-	var htmlLines []string
-
+	var writerExist bool
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := scanner.Bytes()
 		if len(line) > 0 {
-			golines := Scan(line, &htmlLines)
-			if len(line) > 0 {
-				newtemplate = append(newtemplate, golines...)
+			golines := Scan(line, &htmlLines, &writerExist)
+			if len(golines) > 0 {
+				lines = append(lines, golines...)
 			}
 		}
 	}
 
-	return []byte(strings.Join(newtemplate, "\n")), nil
-}
-
-func addPackageLine(filename string) string {
-	packagename := filepath.Base(filepath.Dir(filename))
-	return fmt.Sprintf("package %s", packagename)
-}
-
-func addWriter(line string) string {
-	line = strings.Replace(line, "template", "func", 1)
-	line = regexp.MustCompile("\\)\\s*\\{*\\s*$").ReplaceAllString(line, ") []byte {")
-	writer := "\n	_W := new(bytes.Buffer);\n"
-
-	return line + writer
-}
-
-func addReturn(line string) string {
-	line = "return _W.Bytes()\n}"
-	return line
-}
-
-func addFuncHandler(line string) string {
-	f := regexp.MustCompile("=(.*)").FindAllStringSubmatch(line, -1)
-	// log.Println(f, line)
-
-	if len(f) == 0 || len(f[0]) != 2 {
-		log.Fatal(errors.New("called function not found check your template at string" + line))
-	}
-	return fmt.Sprintf("_W.Write(%s)", f[0][1])
+	return
 }
 
 //Scan is line parser
-func Scan(line string, htmlLines *[]string) []string {
-	line = strings.Trim(line, " 	")
-
-	if line == "" {
-		return []string{}
+func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) {
+	//ignore empty line
+	if len(bytes.Trim(line, " 	")) == 0 {
+		return
 	}
 
 	//ignore comments
-	if len(line) >= 2 && line[:2] == "//" {
-		return []string{}
+	if reComment.Match(line) {
+		return
 	}
 
 	//go code
-	if len(line) >= 2 && line[:2] == "||" {
+	if reGoLine.Match(line) {
 
-		line = line[2:]
-		switch {
-		case line[0] == '=': //print other template
-			line = addFuncHandler(line)
-		case regexp.MustCompile("^ *template").MatchString(line):
-			line = addWriter(line)
-		case regexp.MustCompile("^ *end").MatchString(line):
-			line = addReturn(line)
+		if len(*htmlLines) != 0 {
+			lines = append(lines, printHTML(*htmlLines...))
+			*htmlLines = [][]byte{}
 		}
 
-		doneLines := []string{PrintHTML(*htmlLines...), line}
-		*htmlLines = []string{}
-		return doneLines
+		lines = append(lines, parseGoLine(line, writerExist)...)
+		return
 	}
 
-	//inline go code
-	if regexp.MustCompile("{{.*?}}").MatchString(line) {
-
-		aline := regexp.MustCompile("(.*?)({{.*?}})(.*)").FindAllStringSubmatch(line, -1)
-
-		var doneLines []string
-		if len(*htmlLines) > 0 {
-			doneLines = append(doneLines, PrintHTML(*htmlLines...))
-			*htmlLines = []string{}
-		}
-		doneLines = append(doneLines, PrintHTML(aline[0][1]))
-		doneLines = append(doneLines, GoPrint(aline[0][2]))
-
-		add := Scan(aline[0][3], htmlLines)
-		if len(add) != 0 {
-			doneLines = append(doneLines, add...) //append(add, PrintHTML(*htmlLines...))...)
-		}
-		if len(*htmlLines) > 0 {
-			doneLines = append(doneLines, PrintHTML(*htmlLines...))
-			*htmlLines = []string{}
+	for {
+		n0 := bytes.Index(line, []byte("{{"))
+		n1 := bytes.Index(line, []byte("}}"))
+		// log.Println(string(line), n0, n1)
+		if n0 < 0 && n1 < 0 || n0 >= n1 {
+			break
 		}
 
-		return doneLines
+		// log.Println(string(line))
+
+		if len(*htmlLines) != 0 {
+			lines = append(lines, printHTML(*htmlLines...))
+			*htmlLines = [][]byte{}
+		}
+
+		// log.Println(string(line))
+		// log.Println(len(line), n0, n1)
+
+		prefixHTML := line[:n0]
+		operator := line[n0+2 : n0+3][0]
+		gocode := line[n0+3 : n1]
+		line = line[n1+2:]
+
+		switch operator {
+		case '?':
+			lines = append(lines, printHTML(prefixHTML))
+			lines = append(lines, parseTernary(gocode)...)
+		case '=':
+			var suffixHTML []byte
+			if bytes.Index(line, []byte("{{")) == -1 && bytes.Index(line, []byte("}}")) == -1 {
+				suffixHTML = line
+				line = nil
+			}
+			lines = append(lines, printGocode(prefixHTML, gocode, suffixHTML))
+		default:
+			log.Fatalln("unknown inline operator '%s' in line '%s'", string(operator), string(line))
+		}
 	}
 
-	//html
-	*htmlLines = append(*htmlLines, strings.TrimLeft(line, " \t\r\n"))
+	if len(line) > 0 {
+		*htmlLines = append(*htmlLines, line)
+		// lines = append(lines, printHTML(line))
+	}
 
-	return []string{}
+	return
 }
 
-//Print return write command for html code
-func PrintHTML(htmlLines ...string) string {
+func addPackageLine(filename string) []byte {
+	filename, _ = filepath.Abs(filename)
+	packagename := filepath.Base(filepath.Dir(filename))
+	return []byte(fmt.Sprintf("package %s", packagename))
+}
+
+func addFuncBegin(line []byte) (lines [][]byte, writerExist bool) {
+	lines = append(lines, []byte{})
+	line = bytes.Replace(line, []byte("template"), []byte("func"), 1)
+	if bytes.Contains(line, []byte("w io.Writer")) {
+		writerExist = true
+		lines = append(lines, append(line, []byte(" {")...))
+	} else {
+		line = regexp.MustCompile("\\)\\s*\\{*\\s*$").ReplaceAll(line, []byte(") []byte {"))
+		writer := []byte("w := new(bytes.Buffer)")
+		lines = append(lines, line)
+		lines = append(lines, writer)
+	}
+
+	return
+}
+
+func addFuncEnd(line []byte, writerExist bool) [][]byte {
+	if writerExist {
+		return [][]byte{[]byte{'}'}}
+	}
+	return [][]byte{[]byte("return w.Bytes()"), []byte("}")}
+}
+
+func addFuncHandler(line []byte) (lines [][]byte) {
+	f := regexp.MustCompile("=(.*)").FindAllSubmatch(line, -1)
+	// log.Println(f, line)
+
+	if len(f) == 0 || len(f[0]) != 2 {
+		log.Fatal(fmt.Errorf("called function not found check your template at string %s", string(line)))
+	}
+
+	return [][]byte{[]byte(fmt.Sprintf("w.Write(%s)", f[0][1]))}
+}
+
+var (
+	reComment = regexp.MustCompile("[ 	]*//")
+	reGoLine  = regexp.MustCompile("[ 	]*\\|\\|.+")
+
+	reInlineTernary = regexp.MustCompile("{{\\?.+?}}")
+	reInlineGoPrint = regexp.MustCompile("{{=.+?}}")
+	reInlineSplit   = regexp.MustCompile("(.*?){{(.+?)}}(.*)")
+)
+
+func parseGoLine(line []byte, writerExist *bool) (lines [][]byte) {
+	line = bytes.Trim(line, " 	||")
+
+	var morelines [][]byte
+	// var writerExist bool
+	// line = line[2:]
+
+	switch {
+	case line[0] == '=': //print other template
+		morelines = addFuncHandler(line)
+	case regexp.MustCompile("^ *template ").Match(line):
+		morelines, *writerExist = addFuncBegin(line)
+	case regexp.MustCompile("^ *end *$").Match(line):
+		morelines = addFuncEnd(line, *writerExist)
+	default:
+		morelines = append(morelines, line)
+	}
+
+	// lines = append(lines, printHTML(*htmlLines...))
+	lines = append(lines, morelines...)
+
+	// validateFragment(line, lines...)
+	// *htmlLines = [][]byte{}
+	return
+}
+
+func parseTernary(gocode []byte) (lines [][]byte) {
+	nq := bytes.Index(gocode, []byte("?"))
+	nc := bytes.Index(gocode, []byte(":"))
+	if nq <= 0 {
+		log.Fatalln("failed parse ternary operator", string(gocode))
+	}
+
+	_if := fmt.Sprintf("if %s {", string(gocode[:nq]))
+	var _then string
+	if nc == -1 {
+		_then = fmt.Sprintf("	fmt.Fprintf(w, \"%%v\", %s)", gocode[nq+1:])
+	} else {
+		_then = fmt.Sprintf("	fmt.Fprintf(w, \"%%v\", %s)", gocode[nq+1:nc])
+	}
+
+	lines = append(lines, []byte(_if))
+	lines = append(lines, []byte(_then))
+	lines = append(lines, []byte("}"))
+
+	if nc > 0 {
+		lines[2] = []byte("} else {")
+		_else := fmt.Sprintf("	fmt.Fprintf(w, \"%%v\", %s)", gocode[nc+1:])
+		lines = append(lines, []byte(_else))
+		lines = append(lines, []byte("}"))
+	}
+
+	validateFragment(gocode, lines...)
+
+	return
+}
+
+func printGocode(prefixHTML, gocode, suffixHTML []byte) []byte {
+	s0 := strings.Trim(strconv.Quote(string(prefixHTML)), "\"")
+	s1 := strings.Trim(strconv.Quote(string(suffixHTML)), "\"")
+	// log.Println(s0, s1)
+	s := []byte(fmt.Sprintf(`fmt.Fprintf(w, "%s%%v%s", %s)`, s0, s1, gocode))
+
+	validateFragment(gocode, s)
+	return s
+	// return []byte(`fmt.Fprintf(w, "` + string(prefixHTML) + `%v` + string(suffixHTML) + `", ` + string(gocode) + `)`)
+}
+
+//PrintHTML return write command for html code
+func printHTML(htmlLines ...[]byte) []byte {
 	if len(htmlLines) == 0 {
-		return ""
+		return []byte{}
 	}
 
-	htmlCode := strings.TrimLeft(strings.Join(htmlLines, "\n"), " \t\r\n")
-	if htmlCode == "" {
-		return ""
+	htmlCode := bytes.TrimLeft(bytes.Join(htmlLines, []byte("\n")), "\r\n")
+	if len(htmlCode) == 0 {
+		return []byte{}
 	}
+	s := []byte(fmt.Sprintf(`w.Write([]byte(%s))`, strconv.Quote(string(htmlCode))))
 
-	return fmt.Sprintf(`_W.WriteString(%s)`, strconv.Quote(htmlCode))
+	validateFragment(htmlCode, s)
+
+	return s
 }
 
-//GoPrint return go code
-func GoPrint(str string) string {
-
-	if len(str) > 6 {
-		//print variable
-		if str[:3] == "{{=" {
-			val := strings.Trim(str, "{}=")
-			return `fmt.Fprintf(_W, "%v", ` + val + `)`
-		}
-
-		//ternary operator
-		if str[:3] == "{{?" {
-			matches := regexp.MustCompile("{{\\?(.*?)\\?(.*?)(:.*)?}}").FindAllStringSubmatch(str, -1)
-			if len(matches) == 0 || len(matches[0]) != 4 {
-				log.Fatalln("failed parse ternary operator", str)
-			}
-
-			_if := matches[0][1]
-			_then := matches[0][2]
-			_else := strings.TrimLeft(matches[0][3], `:`)
-
-			condition := []string{
-				fmt.Sprintf("if %s {", _if),
-				fmt.Sprintf("fmt.Fprintf(_W, \"%%v\", %s)", _then),
-				"}",
-			}
-
-			if _else != "" {
-				conditionElse := []string{
-					"} else {",
-					fmt.Sprintf("fmt.Fprintf(_W,\"%%v\",%s)", _else),
-					"}",
-				}
-				condition = append(condition[:2], conditionElse...)
-			}
-
-			return strings.Join(condition, "\n")
-		}
+func validateFragment(original []byte, lines ...[]byte) {
+	opt := &imports.Options{FormatOnly: true, AllErrors: true, Fragment: true}
+	_, err := imports.Process("fragment", bytes.Join(lines, []byte("\n")), opt)
+	if err != nil {
+		fmt.Printf("error in fragment: '%s'\n", string(original))
+		fmt.Println(string(bytes.Join(lines, []byte("\n"))))
+		log.Fatalln(err)
 	}
-
-	return strings.Trim(str, "{}")
 }
+
+// func GoTernary(gocode []byte) (lines [][]byte) {
+// 	gocode = bytes.Trim(gocode, "?")
+
+// 	nq := bytes.Index(gocode, []byte("?"))
+// 	if nq <= 0 {
+// 		log.Fatalln("failed parse ternary operator", string(gocode))
+// 	}
+
+// 	_if := fmt.Sprintf("if %s {", string(gocode[:nq]))
+// 	_then := fmt.Sprintf("fmt.Fprintf(w, \"%%v\", %s)", gocode[nq+1:])
+
+// 	lines = append(lines, []byte(_if))
+// 	lines = append(lines, []byte(_then))
+// 	lines = append(lines, []byte("}"))
+
+// 	nc := bytes.Index(gocode, []byte(":"))
+// 	if nc > 0 {
+// 		lines[2] = []byte("} else {")
+// 		_else := fmt.Sprintf("fmt.Fprintf(w, \"%%v\", %s)", gocode[nc+1:])
+// 		lines = append(lines, []byte(_else))
+// 	}
+
+// 	return
+// }
+
+// //GoPrint return go code
+// func GoPrint(prefixHTML, gocode, suffixHTML []byte) (lines [][]byte) {
+// 	// log.Println(string(prefixHTML), string(gocode), string(suffixHTML))
+
+// 	gocode = bytes.Trim(gocode, "=")
+// 	lines = append(lines, []byte(`fmt.Fprintf(w, "`+string(prefixHTML)+`%v`+string(suffixHTML)+`", `+string(gocode)+`)`))
+// 	return
+// }

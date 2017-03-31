@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -9,6 +10,8 @@ import (
 	"github.com/sg3des/gotemplator/example/templates"
 )
 
+var dir string
+
 func init() {
 	log.SetFlags(log.Lshortfile)
 	// *verbose = true
@@ -16,7 +19,7 @@ func init() {
 }
 
 func TestGenerate(t *testing.T) {
-	gtms, err := Generate(dir) //if failed will be panic
+	gtms, err := getFiles(dir, ".gtm") //if failed will be panic
 	if err != nil {
 		t.Error(err)
 	}
@@ -27,62 +30,44 @@ func TestGenerate(t *testing.T) {
 }
 
 func TestPrint(t *testing.T) {
-	in := `<html>`
-	must := fmt.Sprintf(`_W.WriteString("%s")`, in)
+	in := []byte(`<html>`)
+	must := []byte(fmt.Sprintf(`w.Write([]byte("%s"))`, in))
 
-	out := PrintHTML(in)
+	out := printHTML(in)
 
-	if out != must {
-		t.Error(errors.New("print html code is different"))
+	if !bytes.Equal(out, must) {
+		t.Error(fmt.Errorf("print html code is different, recieved '%s', must be '%s'", out, must))
 	}
 }
 
 func TestGoPrint_print(t *testing.T) {
-	in := `{{=name}}`
-	must := "fmt.Fprintf(_W, \"%v\", name)"
+	in := []byte(`name`)
+	must := []byte("fmt.Fprintf(w, \"%v\", name)")
 
-	out := GoPrint(in)
-	if out != must {
+	out := printGocode(nil, in, nil)
+	if !bytes.Equal(out, must) {
 		t.Error(fmt.Errorf("print go code is different! received `%s` must be `%s`", out, must))
 	}
 
-}
-
-func TestGoPrint_raw(t *testing.T) {
-	in := `{{strings.Join(aname,"\n")}}`
-	must := `strings.Join(aname,"\n")`
-
-	out := GoPrint(in)
-	if out != must {
-		t.Error(fmt.Errorf("print go code is different! received `%s` must be `%s`", out, must))
-	}
 }
 
 func TestScan(t *testing.T) {
-	line := `<div>Hello, {{=name}}!</div>`
-	must := []string{`_W.WriteString("<div>Hello, ")`,
-		`fmt.Fprintf(_W, "%v", name)`,
-		`_W.WriteString("!</div>")`,
-	}
+	line := []byte(`<div>Hello, {{=name}}!</div>`)
+	must := [][]byte{[]byte(`fmt.Fprintf(w, "<div>Hello, %v!</div>", name)`)}
 
-	var htmlLines []string
-	result := Scan(line, &htmlLines)
+	var writerExist bool
+	var htmlLines [][]byte
+	result := Scan(line, &htmlLines, &writerExist)
 
 	if len(result) != len(must) {
 		t.Error("length of result should be ", len(must))
 	}
-	if result[0] != must[0] {
-		t.Error("parse line failed! received: `%s` must: `%s`", result[0], must[0])
-	}
-	if result[1] != must[1] {
-		t.Errorf("parse line failed! received: `%s` must: `%s`", result[1], must[1])
-	}
-	if result[2] != must[2] {
-		t.Errorf("parse line failed! received: `%s` must: `%s`", result[2], must[2])
+	if !bytes.Equal(result[0], must[0]) {
+		t.Errorf("parse line failed! received: `%s` must: `%s`", string(result[0]), string(must[0]))
 	}
 
-	line = `// {{=name}}this is comment`
-	result = Scan(line, &htmlLines)
+	line = []byte(`// {{=name}}this is comment`)
+	result = Scan(line, &htmlLines, &writerExist)
 	if len(result) != 0 {
 		t.Error(errors.New("parse comment line failed"))
 	}
@@ -100,25 +85,28 @@ func TestParse(t *testing.T) {
 }
 
 func TestTernary(t *testing.T) {
-	line := "<div>{{?x>10?long:short}}"
-	must := []string{`_W.WriteString("<div>")`,
-		`if x>10 {
-fmt.Fprintf(_W, "%v", long)
-} else {
-fmt.Fprintf(_W,"%v",short)
-}`}
-
-	var htmlLines []string
-	gocode := Scan(line, &htmlLines)
-
-	if len(gocode) != len(must) {
-		t.Errorf("length shoud be equal", len(gocode), len(must))
+	line := []byte("<div>{{?x>10?long:short}}")
+	must := [][]byte{
+		[]byte(`w.Write([]byte("<div>"))`),
+		[]byte(`if x>10 {`),
+		[]byte(`	fmt.Fprintf(w, "%v", long)`),
+		[]byte(`} else {`),
+		[]byte(`	fmt.Fprintf(w, "%v", short)`),
+		[]byte(`}`),
 	}
-	if gocode[0] != must[0] {
-		t.Errorf("not equal `%s` `%s`", gocode[0], must[0])
+
+	var writerExist bool
+	var htmlLines [][]byte
+	out := Scan(line, &htmlLines, &writerExist)
+
+	if len(out) != len(must) {
+		t.Errorf("length shoud be equal %d != %d", len(out), len(must))
 	}
-	if gocode[1] != must[1] {
-		t.Errorf("not equal recieved:\n`%s`\nmust:\n`%s`", gocode[1], must[1])
+	for i, m := range must {
+		o := out[i]
+		if !bytes.Equal(o, m) {
+			t.Errorf("not equal `%s` `%s`", string(o), string(m))
+		}
 	}
 }
 

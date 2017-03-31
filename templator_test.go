@@ -75,7 +75,7 @@ func TestScan(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
-	gocode, err := Parse("./example/templates/index.gtm")
+	gocode, err := Parse("./example/templates/templator.gtm")
 	if err != nil {
 		t.Error(err)
 	}
@@ -110,14 +110,37 @@ func TestTernary(t *testing.T) {
 	}
 }
 
-func BenchmarkGoTemplator(b *testing.B) {
-	// var w = new(bytes.Buffer)
+func BenchmarkTemplator(b *testing.B) {
 	userlist := []string{
 		"Alice",
 		"Bob",
 		"Tom",
 	}
 	for n := 0; n < b.N; n++ {
-		templates.Index(userlist)
+		templates.Templator(userlist)
+	}
+}
+
+func BenchmarkTemplatorWriter(b *testing.B) {
+	var w = new(bytes.Buffer)
+	userlist := []string{
+		"Alice",
+		"Bob",
+		"Tom",
+	}
+	for n := 0; n < b.N; n++ {
+		templates.TemplatorWriter(w, userlist)
+	}
+}
+
+func BenchmarkHero(b *testing.B) {
+	var w = new(bytes.Buffer)
+	userlist := []string{
+		"Alice",
+		"Bob",
+		"Tom",
+	}
+	for n := 0; n < b.N; n++ {
+		templates.Hero(userlist, w)
 	}
 }

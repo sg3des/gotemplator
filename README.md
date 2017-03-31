@@ -22,19 +22,17 @@ OR use go generate:
 
 ## SYNTAX
 
-Template syntax is hybrid of html and go, have only 5 rules:
+Template syntax is hybrid of html and go, have only 4 rules:
 
 1) if the line begins with `||` - then this is go code which is unchanged moved to go file
 
-2) code in `{{ }}`(double curly braces) - is too go code
+2) if the line like `||=Header(somevariable)` - then should call another section or any function returned `[]byte`, it's converted to `w.Write(Header(somevariable))`
 
-3) code in `{{=var}}` - is short print variable
+3) code in `{{=var}}` - is short print variable, converted to `fmt.Fprintf(w, "%v", var)`
 
-4) if the line like `||=Header(somevariable)` - then should call another section or any function returned `[]byte`
+4) simple ternary operator - `{{?condition?then:else}}`, ex: `class='{{?len(val)>10?"long":"short"}}'`
 
-5) simple ternary operator - `{{?condition?then:else}}`, ex: `class='{{?len(val)>10?"long":"short"}}'`
-
-everything else is html - which moved to go file how `_W.WriteString(string)`
+everything else is html - which moved to go file how `w.Write([]byte(string))`
 
 example:
 	
@@ -68,21 +66,76 @@ import (
 )
 
 func Index(users []string) []byte {
-	_W := new(bytes.Buffer)
-
-	_W.WriteString("<!DOCTYPE html><html><head><title></title></head><body><ul>")
+	w := new(bytes.Buffer)
+	w.Write([]byte("\t<!DOCTYPE html>\n\t<html>\n\t\t<head>\n\t\t\t<title></title>\n\t\t</head>\n\t\t<body>\n\t\t\t<ul>"))
 	for i, val := range users {
-		_W.WriteString("<li>")
+		w.Write([]byte("\t\t\t\t<li>"))
 		if i == 0 {
-			fmt.Fprintf(_W, "%v", "selected")
+			fmt.Fprintf(w, "%v", "selected")
 		} else {
-			fmt.Fprintf(_W, "%v", i)
+			fmt.Fprintf(w, "%v", i)
 		}
-		fmt.Fprintf(_W, "%v", val)
-		_W.WriteString("</li>")
+		fmt.Fprintf(w, " %v</li>", val)
 	}
-	_W.WriteString("</ul></body></html>")
-	return _W.Bytes()
+	w.Write([]byte("\t\t\t</ul>\n\t\t</body>\n\t</html>"))
+	return w.Bytes()
+}
+```
+
+If in template arguments exist `w io.Writer`, then html code will be written to it:
+
+```
+|| template IndexWriter(w io.Writer, users []string)
+	<!DOCTYPE html>
+	<html>
+		<head>
+			<title></title>
+		</head>
+		<body>
+			<ul>
+			|| for i, val := range users { 
+				<li>{{?i==0?"selected":i}} {{=val}}</li>
+				// {{=key}} - this is comment and will not be in the .go file
+			|| } 
+			</ul>
+		</body>
+	</html>
+|| end
+```
+
+```go
+func IndexWriter(w io.Writer, users []string) {
+	w.Write([]byte("\t<!DOCTYPE html>\n\t<html>\n\t\t<head>\n\t\t\t<title></title>\n\t\t</head>\n\t\t<body>\n\t\t\t<ul>"))
+	for i, val := range users {
+		w.Write([]byte("\t\t\t\t<li>"))
+		if i == 0 {
+			fmt.Fprintf(w, "%v", "selected")
+		} else {
+			fmt.Fprintf(w, "%v", i)
+		}
+		fmt.Fprintf(w, " %v</li>", val)
+	}
+	w.Write([]byte("\t\t\t</ul>\n\t\t</body>\n\t</html>"))
+}
+```
+
+Templator support ternary operator:
+
+`{{?if>10?"something"}}` converted to:
+
+```go
+if > 10 {
+	fmt.Fprintf(w, "%v", "something")
+}
+```
+
+and with else condition - `{{?i>10?"something":"if condition false"}}`:
+
+```go
+if i > 10 {
+	fmt.Fprintf(w, "%v", "something")
+} else {
+	fmt.Fprintf(w, "%v", "if condition false")
 }
 ```
 
@@ -92,5 +145,6 @@ func Index(users []string) []byte {
 
 GoTemplator slower than [Hero](http://github.com/shiyanhui/hero/) as uses `fmt.Fprintf()` for write user varables and internal creation of `bytes.Buffer`.
 
-	BenchmarkGoTemplator-8  2000000	  767 ns/op	  400 B/op	  6 allocs/op
-	BenchmarkHero-8         3000000	  334 ns/op	  698 B/op	  0 allocs/op
+	BenchmarkTemplator-8         	 2000000	       851 ns/op	     496 B/op	       7 allocs/op
+	BenchmarkTemplatorWriter-8   	 3000000	       522 ns/op	     482 B/op	       5 allocs/op
+	BenchmarkHero-8              	10000000	       220 ns/op	     362 B/op	       0 allocs/op

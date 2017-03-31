@@ -1,0 +1,15 @@
+<%: func Hero(users []string, buffer *bytes.Buffer) %>
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<title></title>
+	</head>
+	<body>
+		<ul>
+		<% for _, val := range users { %>
+			<li><%= val %></li>
+		<% } %>
+		</ul>
+	</body>
+</html>

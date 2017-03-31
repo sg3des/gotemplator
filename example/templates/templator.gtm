@@ -1,0 +1,57 @@
+|| template Templator(users []string) 
+	<!DOCTYPE html>
+	<html>
+		<head>
+			<title></title>
+		</head>
+		<body>
+			<ul>
+			|| for _, val := range users { 
+				<li>{{=val}}</li>
+				// {{=key}} - this is comment and will not be in the .go file
+			|| } 
+			</ul>
+		</body>
+	</html>
+|| end
+
+|| template TemplatorWriter(w io.Writer, users []string)
+	<!DOCTYPE html>
+	<html>
+		<head>
+			<title></title>
+		</head>
+		<body>
+			<ul>
+			|| for _, val := range users { 
+				<li>{{=val}}</li>
+				// {{=key}} - this is comment and will not be in the .go file
+			|| } 
+			</ul>
+		</body>
+	</html>
+|| end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

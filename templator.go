@@ -7,13 +7,13 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/sg3des/argum"
@@ -46,39 +46,29 @@ func main() {
 			fmt.Println(gtmfilename)
 		}
 
-		lines, err := Parse(gtmfilename)
+		w := bytes.NewBuffer([]byte{})
+
+		err := Parse(gtmfilename, w)
 		if err != nil {
 			log.Fatalln(err)
 		}
 
 		if args.Verbose {
-			displayGeneratedCode(lines)
+			displayGeneratedCode(w.Bytes())
 		}
 
-		// log.Println(string(lines[1]))
-
-		// return
-
+		filedata := w.Bytes()
 		filename := strings.TrimSuffix(gtmfilename, filepath.Ext(gtmfilename)) + ".go"
 		opt := &imports.Options{AllErrors: true}
-		importsData, err := imports.Process(filename, bytes.Join(lines, []byte("\n")), opt)
+		importsData, err := imports.Process(filename, filedata, opt)
 		if err != nil {
+			displayGeneratedCode(filedata)
 			log.Println(err)
-			s := err.Error()
-			s = s[strings.Index(s, ":")+1:]
-			s = s[:strings.Index(s, ":")]
-
-			_, err := strconv.Atoi(s)
-			if err != nil {
-				log.Println(err)
-			}
-
-			// log.Println(string(filedata))
-			displayGeneratedCode(lines)
+			// importsData = filedata
 			return
 		}
 
-		err = ioutil.WriteFile(filename, importsData, 0755)
+		ioutil.WriteFile(filename, importsData, 0755)
 	}
 }
 
@@ -95,36 +85,65 @@ func getFiles(dir, ext string) ([]string, error) {
 	return filepath.Glob(path.Join(dir, "*"+args.Ext))
 }
 
-func displayGeneratedCode(lines [][]byte) {
+func displayGeneratedCode(data []byte) {
+	lines := bytes.Split(data, []byte("\n"))
 	for i, line := range lines {
 		fmt.Printf("%d: %s\n", i, string(line))
 	}
 }
 
 //Parse is parser for .gtm file and return go code
-func Parse(filename string) (lines [][]byte, err error) {
+func Parse(filename string, w io.Writer) error {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0755)
 	if err != nil {
-		return lines, err
+		return err
 	}
 
-	lines = append(lines, addPackageLine(filename))
+	w.Write(addPackageLine(filename))
+
 	var htmlLines [][]byte
+	var writerExist bool
 
 	scanner := bufio.NewScanner(f)
-	var writerExist bool
 	for scanner.Scan() {
 		line := scanner.Bytes()
-		if len(line) > 0 {
-			golines := Scan(line, &htmlLines, &writerExist)
-			if len(golines) > 0 {
-				lines = append(lines, golines...)
+		if len(line) == 0 {
+			continue
+		}
+
+		golines := Scan(line, &htmlLines, &writerExist)
+
+		if len(golines) > 0 {
+			// fmt.Println("===")
+			// fmt.Println(string(bytes.Join(golines, []byte("\n"))))
+
+			for _, l := range golines {
+				// fmt.Fprintln(w, l)
+				w.Write(l)
+				w.Write([]byte{'\n'})
+				// fmt.Println(">>>", string(l))
+
 			}
+			// lines = append(lines, golines...)
+
+			// fmt.Println("\n\n=====")
+			// fmt.Println(string(bytes.Join(lines, []byte("\n"))))
 		}
 	}
 
-	return
+	// log.Println(len(htmlLines))
+
+	return nil
 }
+
+var (
+	reComment = regexp.MustCompile("^[ 	]*//")
+	reGoLine  = regexp.MustCompile("^[ 	]*\\|\\|.+")
+
+// 	reInlineTernary = regexp.MustCompile("{{\\?.+?}}")
+// 	reInlineGoPrint = regexp.MustCompile("{{=.+?}}")
+// 	reInlineSplit   = regexp.MustCompile("(.*?){{(.+?)}}(.*)")
+)
 
 //Scan is line parser
 func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) {
@@ -133,7 +152,7 @@ func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) 
 		return
 	}
 
-	//ignore comments
+	//ignore comment line
 	if reComment.Match(line) {
 		return
 	}
@@ -143,7 +162,7 @@ func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) 
 
 		if len(*htmlLines) != 0 {
 			lines = append(lines, printHTML(*htmlLines...))
-			*htmlLines = [][]byte{}
+			*htmlLines = nil //[][]byte{}
 		}
 
 		lines = append(lines, parseGoLine(line, writerExist)...)
@@ -237,15 +256,6 @@ func addFuncHandler(line []byte) (lines [][]byte) {
 	return [][]byte{[]byte(fmt.Sprintf("w.Write(%s)", f[0][1]))}
 }
 
-var (
-	reComment = regexp.MustCompile("[ 	]*//")
-	reGoLine  = regexp.MustCompile("[ 	]*\\|\\|.+")
-
-// 	reInlineTernary = regexp.MustCompile("{{\\?.+?}}")
-// 	reInlineGoPrint = regexp.MustCompile("{{=.+?}}")
-// 	reInlineSplit   = regexp.MustCompile("(.*?){{(.+?)}}(.*)")
-)
-
 func parseGoLine(line []byte, writerExist *bool) (lines [][]byte) {
 	line = bytes.Trim(line, " 	||")
 
@@ -304,10 +314,13 @@ func parseTernary(gocode []byte) (lines [][]byte) {
 }
 
 func printGocode(prefixHTML, gocode, suffixHTML []byte) []byte {
-	s0 := strings.Trim(strconv.Quote(string(prefixHTML)), "\"")
-	s1 := strings.Trim(strconv.Quote(string(suffixHTML)), "\"")
+	s0 := string(prefixHTML)
+	s1 := string(suffixHTML)
+
+	// s0 := strings.Trim(strconv.Quote(string(prefixHTML)), "\"")
+	// s1 := strings.Trim(strconv.Quote(string(suffixHTML)), "\"")
 	// log.Println(s0, s1)
-	s := []byte(fmt.Sprintf(`fmt.Fprintf(w, "%s%%v%s", %s)`, s0, s1, gocode))
+	s := []byte(fmt.Sprintf("fmt.Fprintf(w, `%s%%v%s`, %s)", s0, s1, gocode))
 
 	validateFragment(gocode, s)
 	return s
@@ -323,11 +336,12 @@ func printHTML(htmlLines ...[]byte) []byte {
 	if len(htmlCode) == 0 {
 		return []byte{}
 	}
-	s := []byte(fmt.Sprintf(`w.Write([]byte(%s))`, strconv.Quote(string(htmlCode))))
+	// s := strconv.Quote()
+	s := fmt.Sprintf("w.Write([]byte(`%s`))", string(htmlCode))
 
-	validateFragment(htmlCode, s)
+	validateFragment(htmlCode, []byte(s))
 
-	return s
+	return []byte(s)
 }
 
 func validateFragment(original []byte, lines ...[]byte) {

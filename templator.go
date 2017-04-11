@@ -219,7 +219,7 @@ func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) 
 func addPackageLine(filename string) []byte {
 	filename, _ = filepath.Abs(filename)
 	packagename := filepath.Base(filepath.Dir(filename))
-	return []byte(fmt.Sprintf("package %s", packagename))
+	return []byte(fmt.Sprintf("package %s\n", packagename))
 }
 
 func addFuncBegin(line []byte) (lines [][]byte, writerExist bool) {

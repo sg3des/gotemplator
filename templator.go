@@ -28,11 +28,10 @@ var args struct {
 }
 
 func init() {
-	log.SetFlags(log.Lshortfile)
+	// log.SetFlags(log.Lshortfile)
 
-	argum.Version = "1.1.3.170329"
+	argum.Version = "1.1.4.171217"
 	argum.MustParse(&args)
-	// arg.MustParse(&args)
 }
 
 func main() {
@@ -99,8 +98,7 @@ func Parse(filename string, w io.Writer) error {
 		return err
 	}
 
-	w.Write(addPackageLine(filename))
-
+	var packageExist bool
 	var htmlLines [][]byte
 	var writerExist bool
 
@@ -111,27 +109,24 @@ func Parse(filename string, w io.Writer) error {
 			continue
 		}
 
+		if regexp.MustCompile("^\\|\\| ?package ").Match(line) {
+			packageExist = true
+		}
+
 		golines := Scan(line, &htmlLines, &writerExist)
 
-		if len(golines) > 0 {
-			// fmt.Println("===")
-			// fmt.Println(string(bytes.Join(golines, []byte("\n"))))
+		if !packageExist {
+			w.Write(addPackageLine(filename))
+			packageExist = true
+		}
 
+		if len(golines) > 0 {
 			for _, l := range golines {
-				// fmt.Fprintln(w, l)
 				w.Write(l)
 				w.Write([]byte{'\n'})
-				// fmt.Println(">>>", string(l))
-
 			}
-			// lines = append(lines, golines...)
-
-			// fmt.Println("\n\n=====")
-			// fmt.Println(string(bytes.Join(lines, []byte("\n"))))
 		}
 	}
-
-	// log.Println(len(htmlLines))
 
 	return nil
 }
@@ -139,11 +134,76 @@ func Parse(filename string, w io.Writer) error {
 var (
 	reComment = regexp.MustCompile("^[ 	]*//")
 	reGoLine  = regexp.MustCompile("^[ 	]*\\|\\|.+")
-
-// 	reInlineTernary = regexp.MustCompile("{{\\?.+?}}")
-// 	reInlineGoPrint = regexp.MustCompile("{{=.+?}}")
-// 	reInlineSplit   = regexp.MustCompile("(.*?){{(.+?)}}(.*)")
 )
+
+type Parser struct {
+	HTML     [][]byte
+	ioWriter bool
+}
+
+func (p *Parser) Scan(line []byte) (lines [][]byte) {
+	//ignore empty line
+	if len(bytes.Trim(line, " 	")) == 0 {
+		return
+	}
+
+	//ignore comment line
+	if reComment.Match(line) {
+		return
+	}
+
+	//go code
+	if reGoLine.Match(line) {
+
+		if len(p.HTML) != 0 {
+			lines = append(lines, printHTML(p.HTML...))
+			p.HTML = p.HTML[:0] //[][]byte{}
+		}
+
+		lines = append(lines, parseGoLine(line, &p.ioWriter)...)
+		return
+	}
+
+	for {
+		n0 := bytes.Index(line, []byte("{{"))
+		n1 := bytes.Index(line, []byte("}}"))
+		// log.Println(string(line), n0, n1)
+		if n0 < 0 && n1 < 0 || n0 >= n1 {
+			break
+		}
+
+		if len(p.HTML) != 0 {
+			lines = append(lines, printHTML(p.HTML...))
+			p.HTML = p.HTML[:0]
+		}
+
+		prefixHTML := line[:n0]
+		operator := line[n0+2 : n0+3][0]
+		gocode := line[n0+3 : n1]
+		line = line[n1+2:]
+
+		switch operator {
+		case '?':
+			lines = append(lines, printHTML(prefixHTML))
+			lines = append(lines, parseTernary(gocode)...)
+		case '=':
+			var suffixHTML []byte
+			if !bytes.Contains(line, []byte("{{")) && !bytes.Contains(line, []byte("}}")) {
+				suffixHTML = line
+				line = nil
+			}
+			lines = append(lines, printGocode(prefixHTML, gocode, suffixHTML))
+		default:
+			log.Fatalf("unknown inline operator '%s' in line '%s'", string(operator), string(line))
+		}
+	}
+
+	if len(line) > 0 {
+		p.HTML = append(p.HTML, line)
+	}
+
+	return
+}
 
 //Scan is line parser
 func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) {
@@ -204,7 +264,7 @@ func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) 
 			}
 			lines = append(lines, printGocode(prefixHTML, gocode, suffixHTML))
 		default:
-			log.Fatalln("unknown inline operator '%s' in line '%s'", string(operator), string(line))
+			log.Fatalf("unknown inline operator '%s' in line '%s'", string(operator), string(line))
 		}
 	}
 
@@ -219,7 +279,7 @@ func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) 
 func addPackageLine(filename string) []byte {
 	filename, _ = filepath.Abs(filename)
 	packagename := filepath.Base(filepath.Dir(filename))
-	return []byte(fmt.Sprintf("package %s", packagename))
+	return []byte(fmt.Sprintf("package %s\n", packagename))
 }
 
 func addFuncBegin(line []byte) (lines [][]byte, writerExist bool) {

@@ -75,12 +75,10 @@ func TestScan(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
-	gocode, err := Parse("./example/templates/templator.gtm")
+	buf := bytes.NewBuffer([]byte{})
+	err := Parse("./example/templates/templator.gtm", buf)
 	if err != nil {
 		t.Error(err)
-	}
-	if len(gocode) == 0 {
-		t.Error(errors.New("length of returned code is zero"))
 	}
 }
 

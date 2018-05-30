@@ -7,7 +7,7 @@
 		<body>
 			<ul>
 			|| for _, val := range users { 
-				<li>{{=val}}</li>
+				<li width='100%'>{{=val}}</li><i width='50%'></i>
 				// {{=key}} - this is comment and will not be in the .go file
 			|| } 
 			</ul>

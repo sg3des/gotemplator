@@ -13,5 +13,5 @@ func main() {
 }
 
 func GoTemplator(w http.ResponseWriter, r *http.Request) {
-	w.Write(templates.Index([]string{"User0", "User1", "User1"}))
+	w.Write(templates.Templator([]string{"User0", "User1", "User1"}))
 }

@@ -31,7 +31,7 @@ func TestGenerate(t *testing.T) {
 
 func TestPrint(t *testing.T) {
 	in := []byte(`<html>`)
-	must := []byte(fmt.Sprintf(`w.Write([]byte("%s"))`, in))
+	must := []byte(fmt.Sprintf("w.Write([]byte(`%s`))", in))
 
 	out := printHTML(in)
 
@@ -42,7 +42,7 @@ func TestPrint(t *testing.T) {
 
 func TestGoPrint_print(t *testing.T) {
 	in := []byte(`name`)
-	must := []byte("fmt.Fprintf(w, \"%v\", name)")
+	must := []byte("fmt.Fprintf(w, `%v`, name)")
 
 	out := printGocode(nil, in, nil)
 	if !bytes.Equal(out, must) {
@@ -53,7 +53,7 @@ func TestGoPrint_print(t *testing.T) {
 
 func TestScan(t *testing.T) {
 	line := []byte(`<div>Hello, {{=name}}!</div>`)
-	must := [][]byte{[]byte(`fmt.Fprintf(w, "<div>Hello, %v!</div>", name)`)}
+	must := [][]byte{[]byte("fmt.Fprintf(w, `<div>Hello, %v!</div>`, name)")}
 
 	var writerExist bool
 	var htmlLines [][]byte
@@ -85,7 +85,7 @@ func TestParse(t *testing.T) {
 func TestTernary(t *testing.T) {
 	line := []byte("<div>{{?x>10?long:short}}")
 	must := [][]byte{
-		[]byte(`w.Write([]byte("<div>"))`),
+		[]byte("w.Write([]byte(`<div>`))"),
 		[]byte(`if x>10 {`),
 		[]byte(`	fmt.Fprintf(w, "%v", long)`),
 		[]byte(`} else {`),
@@ -103,7 +103,7 @@ func TestTernary(t *testing.T) {
 	for i, m := range must {
 		o := out[i]
 		if !bytes.Equal(o, m) {
-			t.Errorf("not equal `%s` `%s`", string(o), string(m))
+			t.Errorf("not equal `%s` != `%s`", string(o), string(m))
 		}
 	}
 }

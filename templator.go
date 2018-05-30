@@ -142,6 +142,7 @@ type Parser struct {
 }
 
 func (p *Parser) Scan(line []byte) (lines [][]byte) {
+
 	//ignore empty line
 	if len(bytes.Trim(line, " 	")) == 0 {
 		return
@@ -232,7 +233,6 @@ func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) 
 	for {
 		n0 := bytes.Index(line, []byte("{{"))
 		n1 := bytes.Index(line, []byte("}}"))
-		// log.Println(string(line), n0, n1)
 		if n0 < 0 && n1 < 0 || n0 >= n1 {
 			break
 		}
@@ -251,6 +251,9 @@ func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) 
 		operator := line[n0+2 : n0+3][0]
 		gocode := line[n0+3 : n1]
 		line = line[n1+2:]
+
+		prefixHTML = bytes.Replace(prefixHTML, []byte(`%`), []byte(`%%`), -1)
+		line = bytes.Replace(line, []byte(`%`), []byte(`%%`), -1)
 
 		switch operator {
 		case '?':

@@ -145,6 +145,6 @@ if i > 10 {
 
 GoTemplator slower than [Hero](http://github.com/shiyanhui/hero/) as uses `fmt.Fprintf()` for write user varables and internal creation of `bytes.Buffer`.
 
-	BenchmarkTemplator-8         	 2000000	       851 ns/op	     496 B/op	       7 allocs/op
-	BenchmarkTemplatorWriter-8   	 3000000	       522 ns/op	     482 B/op	       5 allocs/op
-	BenchmarkHero-8              	10000000	       220 ns/op	     362 B/op	       0 allocs/op
+	BenchmarkTemplator-8         	  500000	      4157 ns/op	     928 B/op	       7 allocs/op
+	BenchmarkTemplatorWriter-8   	 1000000	      1000 ns/op	     531 B/op	       3 allocs/op
+	BenchmarkHero-8              	 2000000	       553 ns/op	     453 B/op	       0 allocs/op

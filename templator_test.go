@@ -31,9 +31,9 @@ func TestGenerate(t *testing.T) {
 
 func TestPrint(t *testing.T) {
 	in := []byte(`<html>`)
-	must := []byte(fmt.Sprintf("w.Write([]byte(`%s`))", in))
+	must := []byte(fmt.Sprintf("w.Write(html0)"))
 
-	out := printHTML(in)
+	out := (&Parser{}).printHTML(in)
 
 	if !bytes.Equal(out, must) {
 		t.Error(fmt.Errorf("print html code is different, recieved '%s', must be '%s'", out, must))
@@ -55,9 +55,11 @@ func TestScan(t *testing.T) {
 	line := []byte(`<div>Hello, {{=name}}!</div>`)
 	must := [][]byte{[]byte("fmt.Fprintf(w, `<div>Hello, %v!</div>`, name)")}
 
-	var writerExist bool
-	var htmlLines [][]byte
-	result := Scan(line, &htmlLines, &writerExist)
+	p := &Parser{}
+
+	// var writerExist bool
+	// var htmlLines [][]byte
+	result := p.Scan(line)
 
 	if len(result) != len(must) {
 		t.Error("length of result should be ", len(must))
@@ -67,7 +69,7 @@ func TestScan(t *testing.T) {
 	}
 
 	line = []byte(`// {{=name}}this is comment`)
-	result = Scan(line, &htmlLines, &writerExist)
+	result = p.Scan(line)
 	if len(result) != 0 {
 		t.Error(errors.New("parse comment line failed"))
 	}
@@ -85,7 +87,7 @@ func TestParse(t *testing.T) {
 func TestTernary(t *testing.T) {
 	line := []byte("<div>{{?x>10?long:short}}")
 	must := [][]byte{
-		[]byte("w.Write([]byte(`<div>`))"),
+		[]byte("w.Write(html0)"),
 		[]byte(`if x>10 {`),
 		[]byte(`	fmt.Fprintf(w, "%v", long)`),
 		[]byte(`} else {`),
@@ -93,9 +95,9 @@ func TestTernary(t *testing.T) {
 		[]byte(`}`),
 	}
 
-	var writerExist bool
-	var htmlLines [][]byte
-	out := Scan(line, &htmlLines, &writerExist)
+	p := &Parser{}
+
+	out := p.Scan(line)
 
 	if len(out) != len(must) {
 		t.Errorf("length shoud be equal %d != %d", len(out), len(must))
@@ -108,12 +110,13 @@ func TestTernary(t *testing.T) {
 	}
 }
 
+var userlist = []string{
+	"Alice",
+	"Bob",
+	"Tom",
+}
+
 func BenchmarkTemplator(b *testing.B) {
-	userlist := []string{
-		"Alice",
-		"Bob",
-		"Tom",
-	}
 	for n := 0; n < b.N; n++ {
 		templates.Templator(userlist)
 	}
@@ -121,11 +124,6 @@ func BenchmarkTemplator(b *testing.B) {
 
 func BenchmarkTemplatorWriter(b *testing.B) {
 	var w = new(bytes.Buffer)
-	userlist := []string{
-		"Alice",
-		"Bob",
-		"Tom",
-	}
 	for n := 0; n < b.N; n++ {
 		templates.TemplatorWriter(w, userlist)
 	}
@@ -133,11 +131,6 @@ func BenchmarkTemplatorWriter(b *testing.B) {
 
 func BenchmarkHero(b *testing.B) {
 	var w = new(bytes.Buffer)
-	userlist := []string{
-		"Alice",
-		"Bob",
-		"Tom",
-	}
 	for n := 0; n < b.N; n++ {
 		templates.Hero(userlist, w)
 	}

@@ -98,9 +98,11 @@ func Parse(filename string, w io.Writer) error {
 		return err
 	}
 
+	p := &Parser{}
+
 	var packageExist bool
-	var htmlLines [][]byte
-	var writerExist bool
+	// var htmlLines [][]byte
+	// var writerExist bool
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -113,7 +115,8 @@ func Parse(filename string, w io.Writer) error {
 			packageExist = true
 		}
 
-		golines := Scan(line, &htmlLines, &writerExist)
+		golines := p.Scan(line)
+		// golines := Scan(line, &htmlLines, &writerExist)
 
 		if !packageExist {
 			w.Write(addPackageLine(filename))
@@ -128,6 +131,11 @@ func Parse(filename string, w io.Writer) error {
 		}
 	}
 
+	for i, s := range p.rawhtml {
+		w.Write(printRawHTML(i, s))
+		// lines = append(lines, )
+	}
+
 	return nil
 }
 
@@ -138,6 +146,7 @@ var (
 
 type Parser struct {
 	HTML     [][]byte
+	rawhtml  [][]byte
 	ioWriter bool
 }
 
@@ -157,7 +166,7 @@ func (p *Parser) Scan(line []byte) (lines [][]byte) {
 	if reGoLine.Match(line) {
 
 		if len(p.HTML) != 0 {
-			lines = append(lines, printHTML(p.HTML...))
+			lines = append(lines, p.printHTML(p.HTML...))
 			p.HTML = p.HTML[:0] //[][]byte{}
 		}
 
@@ -174,7 +183,7 @@ func (p *Parser) Scan(line []byte) (lines [][]byte) {
 		}
 
 		if len(p.HTML) != 0 {
-			lines = append(lines, printHTML(p.HTML...))
+			lines = append(lines, p.printHTML(p.HTML...))
 			p.HTML = p.HTML[:0]
 		}
 
@@ -183,9 +192,12 @@ func (p *Parser) Scan(line []byte) (lines [][]byte) {
 		gocode := line[n0+3 : n1]
 		line = line[n1+2:]
 
+		prefixHTML = bytes.Replace(prefixHTML, []byte(`%`), []byte(`%%`), -1)
+		line = bytes.Replace(line, []byte(`%`), []byte(`%%`), -1)
+
 		switch operator {
 		case '?':
-			lines = append(lines, printHTML(prefixHTML))
+			lines = append(lines, p.printHTML(prefixHTML))
 			lines = append(lines, parseTernary(gocode)...)
 		case '=':
 			var suffixHTML []byte
@@ -206,78 +218,82 @@ func (p *Parser) Scan(line []byte) (lines [][]byte) {
 	return
 }
 
-//Scan is line parser
-func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) {
-	//ignore empty line
-	if len(bytes.Trim(line, " 	")) == 0 {
-		return
-	}
-
-	//ignore comment line
-	if reComment.Match(line) {
-		return
-	}
-
-	//go code
-	if reGoLine.Match(line) {
-
-		if len(*htmlLines) != 0 {
-			lines = append(lines, printHTML(*htmlLines...))
-			*htmlLines = nil //[][]byte{}
-		}
-
-		lines = append(lines, parseGoLine(line, writerExist)...)
-		return
-	}
-
-	for {
-		n0 := bytes.Index(line, []byte("{{"))
-		n1 := bytes.Index(line, []byte("}}"))
-		if n0 < 0 && n1 < 0 || n0 >= n1 {
-			break
-		}
-
-		// log.Println(string(line))
-
-		if len(*htmlLines) != 0 {
-			lines = append(lines, printHTML(*htmlLines...))
-			*htmlLines = [][]byte{}
-		}
-
-		// log.Println(string(line))
-		// log.Println(len(line), n0, n1)
-
-		prefixHTML := line[:n0]
-		operator := line[n0+2 : n0+3][0]
-		gocode := line[n0+3 : n1]
-		line = line[n1+2:]
-
-		prefixHTML = bytes.Replace(prefixHTML, []byte(`%`), []byte(`%%`), -1)
-		line = bytes.Replace(line, []byte(`%`), []byte(`%%`), -1)
-
-		switch operator {
-		case '?':
-			lines = append(lines, printHTML(prefixHTML))
-			lines = append(lines, parseTernary(gocode)...)
-		case '=':
-			var suffixHTML []byte
-			if !bytes.Contains(line, []byte("{{")) && !bytes.Contains(line, []byte("}}")) {
-				suffixHTML = line
-				line = nil
-			}
-			lines = append(lines, printGocode(prefixHTML, gocode, suffixHTML))
-		default:
-			log.Fatalf("unknown inline operator '%s' in line '%s'", string(operator), string(line))
-		}
-	}
-
-	if len(line) > 0 {
-		*htmlLines = append(*htmlLines, line)
-		// lines = append(lines, printHTML(line))
-	}
-
-	return
+func printRawHTML(i int, rawhtml []byte) []byte {
+	return []byte(fmt.Sprintf("var html%d = []byte(`%s`)\n", i, rawhtml))
 }
+
+// //Scan is line parser
+// func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) {
+// 	//ignore empty line
+// 	if len(bytes.Trim(line, " 	")) == 0 {
+// 		return
+// 	}
+
+// 	//ignore comment line
+// 	if reComment.Match(line) {
+// 		return
+// 	}
+
+// 	//go code
+// 	if reGoLine.Match(line) {
+
+// 		if len(*htmlLines) != 0 {
+// 			lines = append(lines, printHTML(*htmlLines...))
+// 			*htmlLines = nil //[][]byte{}
+// 		}
+
+// 		lines = append(lines, parseGoLine(line, writerExist)...)
+// 		return
+// 	}
+
+// 	for {
+// 		n0 := bytes.Index(line, []byte("{{"))
+// 		n1 := bytes.Index(line, []byte("}}"))
+// 		if n0 < 0 && n1 < 0 || n0 >= n1 {
+// 			break
+// 		}
+
+// 		// log.Println(string(line))
+
+// 		if len(*htmlLines) != 0 {
+// 			lines = append(lines, printHTML(*htmlLines...))
+// 			*htmlLines = [][]byte{}
+// 		}
+
+// 		// log.Println(string(line))
+// 		// log.Println(len(line), n0, n1)
+
+// 		prefixHTML := line[:n0]
+// 		operator := line[n0+2 : n0+3][0]
+// 		gocode := line[n0+3 : n1]
+// 		line = line[n1+2:]
+
+// 		prefixHTML = bytes.Replace(prefixHTML, []byte(`%`), []byte(`%%`), -1)
+// 		line = bytes.Replace(line, []byte(`%`), []byte(`%%`), -1)
+
+// 		switch operator {
+// 		case '?':
+// 			lines = append(lines, printHTML(prefixHTML))
+// 			lines = append(lines, parseTernary(gocode)...)
+// 		case '=':
+// 			var suffixHTML []byte
+// 			if !bytes.Contains(line, []byte("{{")) && !bytes.Contains(line, []byte("}}")) {
+// 				suffixHTML = line
+// 				line = nil
+// 			}
+// 			lines = append(lines, printGocode(prefixHTML, gocode, suffixHTML))
+// 		default:
+// 			log.Fatalf("unknown inline operator '%s' in line '%s'", string(operator), string(line))
+// 		}
+// 	}
+
+// 	if len(line) > 0 {
+// 		*htmlLines = append(*htmlLines, line)
+// 		// lines = append(lines, printHTML(line))
+// 	}
+
+// 	return
+// }
 
 func addPackageLine(filename string) []byte {
 	filename, _ = filepath.Abs(filename)
@@ -390,19 +406,20 @@ func printGocode(prefixHTML, gocode, suffixHTML []byte) []byte {
 }
 
 //PrintHTML return write command for html code
-func printHTML(htmlLines ...[]byte) []byte {
+func (p *Parser) printHTML(htmlLines ...[]byte) []byte {
 	if len(htmlLines) == 0 {
 		return []byte{}
 	}
 
-	htmlCode := bytes.TrimLeft(bytes.Join(htmlLines, []byte("\n")), "\r\n")
-	if len(htmlCode) == 0 {
+	rawhtml := bytes.TrimLeft(bytes.Join(htmlLines, []byte("\n")), "\r\n")
+	if len(rawhtml) == 0 {
 		return []byte{}
 	}
-	// s := strconv.Quote()
-	s := fmt.Sprintf("w.Write([]byte(`%s`))", string(htmlCode))
 
-	validateFragment(htmlCode, []byte(s))
+	s := fmt.Sprintf("w.Write(html%d)", len(p.rawhtml))
+	p.rawhtml = append(p.rawhtml, rawhtml)
+
+	validateFragment(rawhtml, []byte(s))
 
 	return []byte(s)
 }

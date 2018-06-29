@@ -30,7 +30,7 @@ var args struct {
 func init() {
 	// log.SetFlags(log.Lshortfile)
 
-	argum.Version = "1.1.4.171217"
+	argum.Version = "1.1.6.180629"
 	argum.MustParse(&args)
 }
 

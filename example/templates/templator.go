@@ -6,6 +6,10 @@ import (
 	"io"
 )
 
+func somefunc(w io.Writer, s string) {
+	fmt.Fprintln(w, s)
+}
+
 func Templator(users []string) []byte {
 	w := new(bytes.Buffer)
 	w.Write(html0)
@@ -18,10 +22,12 @@ func Templator(users []string) []byte {
 
 func TemplatorWriter(w io.Writer, users []string) {
 	w.Write(html2)
+	somefunc(w, "text")
+	w.Write(html3)
 	for _, val := range users {
 		fmt.Fprintf(w, `				<li>%v</li>`, val)
 	}
-	w.Write(html3)
+	w.Write(html4)
 }
 
 var html0 = []byte(`	<!DOCTYPE html>
@@ -39,8 +45,8 @@ var html2 = []byte(`	<!DOCTYPE html>
 		<head>
 			<title></title>
 		</head>
-		<body>
-			<ul>`)
-var html3 = []byte(`			</ul>
+		<body>`)
+var html3 = []byte(`			<ul>`)
+var html4 = []byte(`			</ul>
 		</body>
 	</html>`)

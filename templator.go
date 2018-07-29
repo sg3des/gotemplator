@@ -63,7 +63,6 @@ func main() {
 		if err != nil {
 			displayGeneratedCode(filedata)
 			log.Println(err)
-			// importsData = filedata
 			return
 		}
 
@@ -101,8 +100,6 @@ func Parse(filename string, w io.Writer) error {
 	p := &Parser{}
 
 	var packageExist bool
-	// var htmlLines [][]byte
-	// var writerExist bool
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -119,7 +116,7 @@ func Parse(filename string, w io.Writer) error {
 		// golines := Scan(line, &htmlLines, &writerExist)
 
 		if !packageExist {
-			w.Write(addPackageLine(filename))
+			w.Write(p.addPackageLine(filename))
 			packageExist = true
 		}
 
@@ -132,7 +129,7 @@ func Parse(filename string, w io.Writer) error {
 	}
 
 	for i, s := range p.rawhtml {
-		w.Write(printRawHTML(i, s))
+		w.Write(p.printRawHTML(i, s))
 		// lines = append(lines, )
 	}
 
@@ -170,7 +167,7 @@ func (p *Parser) Scan(line []byte) (lines [][]byte) {
 			p.HTML = p.HTML[:0] //[][]byte{}
 		}
 
-		lines = append(lines, parseGoLine(line, &p.ioWriter)...)
+		lines = append(lines, p.parseGoLine(line, &p.ioWriter)...)
 		return
 	}
 
@@ -198,14 +195,16 @@ func (p *Parser) Scan(line []byte) (lines [][]byte) {
 		switch operator {
 		case '?':
 			lines = append(lines, p.printHTML(prefixHTML))
-			lines = append(lines, parseTernary(gocode)...)
+			lines = append(lines, p.parseTernary(gocode)...)
 		case '=':
 			var suffixHTML []byte
 			if !bytes.Contains(line, []byte("{{")) && !bytes.Contains(line, []byte("}}")) {
 				suffixHTML = line
 				line = nil
 			}
-			lines = append(lines, printGocode(prefixHTML, gocode, suffixHTML))
+			lines = append(lines, p.printGocode(prefixHTML, gocode, suffixHTML))
+		case ' ':
+			lines = append(lines, gocode)
 		default:
 			log.Fatalf("unknown inline operator '%s' in line '%s'", string(operator), string(line))
 		}
@@ -218,90 +217,17 @@ func (p *Parser) Scan(line []byte) (lines [][]byte) {
 	return
 }
 
-func printRawHTML(i int, rawhtml []byte) []byte {
+func (p *Parser) printRawHTML(i int, rawhtml []byte) []byte {
 	return []byte(fmt.Sprintf("var html%d = []byte(`%s`)\n", i, rawhtml))
 }
 
-// //Scan is line parser
-// func Scan(line []byte, htmlLines *[][]byte, writerExist *bool) (lines [][]byte) {
-// 	//ignore empty line
-// 	if len(bytes.Trim(line, " 	")) == 0 {
-// 		return
-// 	}
-
-// 	//ignore comment line
-// 	if reComment.Match(line) {
-// 		return
-// 	}
-
-// 	//go code
-// 	if reGoLine.Match(line) {
-
-// 		if len(*htmlLines) != 0 {
-// 			lines = append(lines, printHTML(*htmlLines...))
-// 			*htmlLines = nil //[][]byte{}
-// 		}
-
-// 		lines = append(lines, parseGoLine(line, writerExist)...)
-// 		return
-// 	}
-
-// 	for {
-// 		n0 := bytes.Index(line, []byte("{{"))
-// 		n1 := bytes.Index(line, []byte("}}"))
-// 		if n0 < 0 && n1 < 0 || n0 >= n1 {
-// 			break
-// 		}
-
-// 		// log.Println(string(line))
-
-// 		if len(*htmlLines) != 0 {
-// 			lines = append(lines, printHTML(*htmlLines...))
-// 			*htmlLines = [][]byte{}
-// 		}
-
-// 		// log.Println(string(line))
-// 		// log.Println(len(line), n0, n1)
-
-// 		prefixHTML := line[:n0]
-// 		operator := line[n0+2 : n0+3][0]
-// 		gocode := line[n0+3 : n1]
-// 		line = line[n1+2:]
-
-// 		prefixHTML = bytes.Replace(prefixHTML, []byte(`%`), []byte(`%%`), -1)
-// 		line = bytes.Replace(line, []byte(`%`), []byte(`%%`), -1)
-
-// 		switch operator {
-// 		case '?':
-// 			lines = append(lines, printHTML(prefixHTML))
-// 			lines = append(lines, parseTernary(gocode)...)
-// 		case '=':
-// 			var suffixHTML []byte
-// 			if !bytes.Contains(line, []byte("{{")) && !bytes.Contains(line, []byte("}}")) {
-// 				suffixHTML = line
-// 				line = nil
-// 			}
-// 			lines = append(lines, printGocode(prefixHTML, gocode, suffixHTML))
-// 		default:
-// 			log.Fatalf("unknown inline operator '%s' in line '%s'", string(operator), string(line))
-// 		}
-// 	}
-
-// 	if len(line) > 0 {
-// 		*htmlLines = append(*htmlLines, line)
-// 		// lines = append(lines, printHTML(line))
-// 	}
-
-// 	return
-// }
-
-func addPackageLine(filename string) []byte {
+func (p *Parser) addPackageLine(filename string) []byte {
 	filename, _ = filepath.Abs(filename)
 	packagename := filepath.Base(filepath.Dir(filename))
 	return []byte(fmt.Sprintf("package %s\n", packagename))
 }
 
-func addFuncBegin(line []byte) (lines [][]byte, writerExist bool) {
+func (p *Parser) addFuncBegin(line []byte) (lines [][]byte, writerExist bool) {
 	lines = append(lines, []byte{})
 	line = bytes.Replace(line, []byte("template"), []byte("func"), 1)
 	if bytes.Contains(line, []byte("w io.Writer")) {
@@ -317,16 +243,15 @@ func addFuncBegin(line []byte) (lines [][]byte, writerExist bool) {
 	return
 }
 
-func addFuncEnd(line []byte, writerExist bool) [][]byte {
+func (p *Parser) addFuncEnd(line []byte, writerExist bool) [][]byte {
 	if writerExist {
 		return [][]byte{[]byte{'}'}}
 	}
 	return [][]byte{[]byte("return w.Bytes()"), []byte("}")}
 }
 
-func addFuncHandler(line []byte) (lines [][]byte) {
+func (p *Parser) addFuncHandler(line []byte) (lines [][]byte) {
 	f := regexp.MustCompile("=(.*)").FindAllSubmatch(line, -1)
-	// log.Println(f, line)
 
 	if len(f) == 0 || len(f[0]) != 2 {
 		log.Fatal(fmt.Errorf("called function not found check your template at string %s", string(line)))
@@ -335,33 +260,28 @@ func addFuncHandler(line []byte) (lines [][]byte) {
 	return [][]byte{[]byte(fmt.Sprintf("w.Write(%s)", f[0][1]))}
 }
 
-func parseGoLine(line []byte, writerExist *bool) (lines [][]byte) {
+func (p *Parser) parseGoLine(line []byte, writerExist *bool) (lines [][]byte) {
 	line = bytes.Trim(line, " 	||")
 
 	var morelines [][]byte
-	// var writerExist bool
-	// line = line[2:]
-	// log.Println(string(line))
+
 	switch {
 	case line[0] == '=': //print other template
-		morelines = addFuncHandler(line)
+		morelines = p.addFuncHandler(line)
 	case regexp.MustCompile("^ *template ").Match(line):
-		morelines, *writerExist = addFuncBegin(line)
+		morelines, *writerExist = p.addFuncBegin(line)
 	case regexp.MustCompile("^ *end *$").Match(line):
-		morelines = addFuncEnd(line, *writerExist)
+		morelines = p.addFuncEnd(line, *writerExist)
 	default:
 		morelines = append(morelines, line)
 	}
 
-	// lines = append(lines, printHTML(*htmlLines...))
 	lines = append(lines, morelines...)
 
-	// validateFragment(line, lines...)
-	// *htmlLines = [][]byte{}
 	return
 }
 
-func parseTernary(gocode []byte) (lines [][]byte) {
+func (p *Parser) parseTernary(gocode []byte) (lines [][]byte) {
 	nq := bytes.Index(gocode, []byte("?"))
 	nc := bytes.Index(gocode, []byte(":"))
 	if nq <= 0 {
@@ -387,12 +307,12 @@ func parseTernary(gocode []byte) (lines [][]byte) {
 		lines = append(lines, []byte("}"))
 	}
 
-	validateFragment(gocode, lines...)
+	p.validateFragment(gocode, lines...)
 
 	return
 }
 
-func printGocode(prefixHTML, gocode, suffixHTML []byte) []byte {
+func (p *Parser) printGocode(prefixHTML, gocode, suffixHTML []byte) []byte {
 	s0 := string(prefixHTML)
 	s1 := string(suffixHTML)
 
@@ -401,7 +321,7 @@ func printGocode(prefixHTML, gocode, suffixHTML []byte) []byte {
 	// log.Println(s0, s1)
 	s := []byte(fmt.Sprintf("fmt.Fprintf(w, `%s%%v%s`, %s)", s0, s1, gocode))
 
-	validateFragment(gocode, s)
+	p.validateFragment(gocode, s)
 	return s
 }
 
@@ -419,12 +339,12 @@ func (p *Parser) printHTML(htmlLines ...[]byte) []byte {
 	s := fmt.Sprintf("w.Write(html%d)", len(p.rawhtml))
 	p.rawhtml = append(p.rawhtml, rawhtml)
 
-	validateFragment(rawhtml, []byte(s))
+	p.validateFragment(rawhtml, []byte(s))
 
 	return []byte(s)
 }
 
-func validateFragment(original []byte, lines ...[]byte) {
+func (p *Parser) validateFragment(original []byte, lines ...[]byte) {
 	opt := &imports.Options{FormatOnly: true, AllErrors: true, Fragment: true}
 	_, err := imports.Process("fragment", bytes.Join(lines, []byte("\n")), opt)
 	if err != nil {

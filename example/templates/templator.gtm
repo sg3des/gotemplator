@@ -1,3 +1,7 @@
+|| template somefunc(w io.Writer,s string)
+{{ fmt.Fprintln(w, s) }}
+|| end
+
 || template Templator(users []string) 
 	<!DOCTYPE html>
 	<html>
@@ -22,6 +26,7 @@
 			<title></title>
 		</head>
 		<body>
+			{{ somefunc(w, "text") }}
 			<ul>
 			|| for _, val := range users { 
 				<li>{{=val}}</li>

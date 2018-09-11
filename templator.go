@@ -28,7 +28,7 @@ var args struct {
 }
 
 func init() {
-	argum.Version = "1.1.7.180729"
+	argum.Version = "v1.1.7-180729"
 	argum.MustParse(&args)
 }
 
@@ -78,7 +78,7 @@ func getFiles(dir, ext string) ([]string, error) {
 		return []string{dir}, nil
 	}
 
-	return filepath.Glob(path.Join(dir, "*"+args.Ext))
+	return filepath.Glob(path.Join(dir, "*"+ext))
 }
 
 func displayGeneratedCode(data []byte) {
@@ -201,10 +201,18 @@ func (p *Parser) Scan(line []byte) (lines [][]byte) {
 				line = nil
 			}
 			lines = append(lines, p.printGocode(prefixHTML, gocode, suffixHTML))
-		case ' ':
-			lines = append(lines, gocode)
+
 		default:
-			log.Fatalf("unknown inline operator '%s' in line '%s'", string(operator), string(line))
+			var suffixHTML []byte
+			if !bytes.Contains(line, []byte("{{")) && !bytes.Contains(line, []byte("}}")) {
+				suffixHTML = line
+				line = nil
+			}
+
+			lines = append(lines, p.printHTML(prefixHTML))
+			lines = append(lines, append([]byte{operator}, gocode...))
+			lines = append(lines, p.printHTML(suffixHTML))
+			// log.Fatalf("unknown inline operator '%s' in line '%s'", string(operator), string(line))
 		}
 	}
 
@@ -311,13 +319,7 @@ func (p *Parser) parseTernary(gocode []byte) (lines [][]byte) {
 }
 
 func (p *Parser) printGocode(prefixHTML, gocode, suffixHTML []byte) []byte {
-	s0 := string(prefixHTML)
-	s1 := string(suffixHTML)
-
-	// s0 := strings.Trim(strconv.Quote(string(prefixHTML)), "\"")
-	// s1 := strings.Trim(strconv.Quote(string(suffixHTML)), "\"")
-	// log.Println(s0, s1)
-	s := []byte(fmt.Sprintf("fmt.Fprintf(w, `%s%%v%s`, %s)", s0, s1, gocode))
+	s := []byte(fmt.Sprintf("fmt.Fprintf(w, `%s%%v%s`, %s)", prefixHTML, suffixHTML, gocode))
 
 	p.validateFragment(gocode, s)
 	return s
